@@ -10,4 +10,5 @@ I am developing two approaches at the moment:
   - Fine-tune a model on a specific domain with the reading-comprehension tasks;
 - Extracting software mentions and URLs from the paper bodies;
   - Fine-tune a model with keywords and software citations to make it understand the connection between the domains and the developed software;
-The two approaches may not exclude each other;
+
+The two approaches may not exclude each other
