@@ -19,6 +19,7 @@ class PaperAbstractsDatasetGeneration:
             mask_hess: bool = False,
             save_dataframe_as_json: bool = False,
             save_dataframe_raw_texts: bool = False,
+            save_dataframe_code_mentions: bool = False
     ):
         """
 
@@ -29,8 +30,10 @@ class PaperAbstractsDatasetGeneration:
         :param mask_hess: bool, whether to consider only papers including H.E.S.S. in the abstract
         :param save_dataframe_as_json: bool, whether to save the dataset as a jsonl file.
         :param save_dataframe_raw_texts: bool, whether to save the dataset of titles + raw texts.
+        :param save_dataframe_code_mentions: bool, whether to save the dataset containing the software mentions.
         """
 
+        self.save_dataframe_code_mentions = save_dataframe_code_mentions
         self.csv_path = path_in if path_in else "./data/abstract_database/abstracts.csv"
 
         self.mask_astro_ph = mask_astro_ph
@@ -59,6 +62,10 @@ class PaperAbstractsDatasetGeneration:
         if save_dataframe_raw_texts:
             self.dataframe_raw_texts_format = self.create_dataframe_raw_texts_format()
             self.save_dataframe_raw_texts_format_as_csv()
+
+        if save_dataframe_code_mentions:
+            self.dataframe_code_mentions = self.create_dataframe_code_mentions()
+            self.save_dataframe_code_mentions_as_csv()
 
 
     def load_data(self) -> pd.DataFrame:
@@ -232,6 +239,14 @@ class PaperAbstractsDatasetGeneration:
 
         return dataframe_out
 
+    def create_dataframe_code_mentions(self):
+
+        dict_code_mentions = self.dict_code_mentions
+
+        dataframe_out = pd.DataFrame(dict_code_mentions)
+
+        return dataframe_out
+
     def save_dataframe_prompt_response_source_as_json(self):
 
         path_to_dir = "./data/dataset/"
@@ -271,6 +286,25 @@ class PaperAbstractsDatasetGeneration:
         )
 
         self.dataframe_raw_texts_format.to_csv(name_save_file, index=True)
+
+    def save_dataframe_code_mentions_as_csv(self):
+
+        path_to_dir = "./data/dataset/"
+        if not os.path.exists(path_to_dir):
+            os.makedirs(path_to_dir)
+
+        name_save_file = path_to_dir + (
+            f"dataset_code_mentions_astroph{int(self.mask_astro_ph)}"
+            f"_hess{int(self.mask_hess)}"
+            f"_skiprows{self.skip_rows}"
+            f"_maxrows{self.max_num_abstracts}.csv") if self.max_num_abstracts is not None else path_to_dir + (
+            f"dataset_code_mentions_astroph{int(self.mask_astro_ph)}"
+            f"_hess{int(self.mask_hess)}"
+            f"_skiprows{self.skip_rows}"
+            f"_maxrows{len(self.dataframe_code_mentions)}.csv"
+        )
+
+        self.dataframe_code_mentions.to_csv(name_save_file, index=True)
 
 def load_pyarrow_dataset(path_to_json_dataset: str, split_train_test: float = None):
     """
@@ -325,6 +359,8 @@ class TrainingDatasetReader(torch.utils.data.Dataset):
 
 
     def get_dataset(self, dataset_path_and_name, test_size):
+
+        # TODO: this has to be modified depending on whether the training is for reading-comprehension or software mentions
 
         dataframe = pd.read_csv(
             dataset_path_and_name,
