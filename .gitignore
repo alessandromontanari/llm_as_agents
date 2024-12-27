@@ -164,3 +164,4 @@ cython_debug/
 # directories with data or temporary cache
 data/
 tmp/
+models/
