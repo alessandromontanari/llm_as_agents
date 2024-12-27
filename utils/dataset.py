@@ -164,7 +164,7 @@ class PaperAbstractsDatasetGeneration:
         print("Extracting where the code is mentioned...")
 
         sources = self.dataframe_abstracts[['title', 'description', 'category']]
-        titles, keywords, categories, mentioned_software = [], [], [], []
+        titles, keywords, categories, mentioned_software, urls = [], [], [], [], []
 
         for index, source in tqdm(sources.iterrows(), total=len(sources)):
 
@@ -175,26 +175,37 @@ class PaperAbstractsDatasetGeneration:
                     matches_code = re.findall(pattern_code, source['description'].split(";Comment")[0], flags=re.IGNORECASE)
                     pattern_kw = r"(?:Keywords|KeyWords|keywords):\s*(.+?)(?:[.;]|$)"
                     match_kw = re.search(pattern_kw, source['description'].split(";Comment")[0])
-                    if match_kw and matches_code:
+                    pattern_url =  re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+                    matches_url = pattern_url.findall(source['description'].split(";Comment")[0])
+                    if match_kw and matches_code and matches_url:
                         titles.append(source['title'])
                         keywords.append(match_kw.group(1).strip())
                         mentioned_software.append(matches_code)
+                        urls.append(matches_url)
                         categories.append(source['category'])
-                    elif matches_code:
+                    elif matches_code and matches_url:
                         titles.append(source['title'])
                         keywords.append('')
                         mentioned_software.append(matches_code)
+                        urls.append(matches_url)
+                        categories.append(source['category'])
+                    elif matches_url:
+                        titles.append(source['title'])
+                        keywords.append('')
+                        mentioned_software.append('')
+                        urls.append(matches_url)
                         categories.append(source['category'])
                     else:
                         titles.append(source['title'])
                         keywords.append('')
                         mentioned_software.append('')
+                        urls.append('')
                         categories.append(source['category'])
             except Exception as e:
                 print(f"Skipping {index} because badly formatted, error {e}")
                 continue
 
-        return {'title': titles, 'keywords': keywords, 'category': categories, 'mentioned_software': mentioned_software}
+        return {'title': titles, 'keywords': keywords, 'category': categories, 'mentioned_software': mentioned_software, 'urls': urls}
 
     def create_dataframe_prompt_response_source(self) -> pd.DataFrame:
 
