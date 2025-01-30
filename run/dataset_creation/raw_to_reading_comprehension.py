@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+
+This script is executable with python -m run.dataset_creation.raw_to_reading_comprehension
+"""
 import argparse
 from tqdm.contrib.concurrent import process_map
 from utils.read import TYPES, type_map, get_max_workers
@@ -6,6 +11,7 @@ import copy
 import functools
 import pandas as pd
 
+# TODO: need to understand if sentenpiece is needed...
 
 def search(entry_dataset, overall_class_type, text_segmenter, initialized_type_map, arguments):
     title = entry_dataset['text'].split('\n')[0]
@@ -44,19 +50,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_dataset',
                         type=str, help='directory of the input raw texts',
-                        default='./data/dataset/dataset_raw_texts_astroph1_hess0_skiprows0_maxrows10000.csv')
+                        default='./data/dataset/dataset_raw_texts_astroph1_hess0_skiprows0_maxrows19648.csv')
     parser.add_argument('--output_dir',
                         type=str, help='directory of the output reading comprehension texts',
                         default='./data/dataset_reading_comprehension/')
     parser.add_argument("--general_spm_path",
                         type=str, help='path to the sentencepiece model of the general LLM',
-                        default='./data/dataset_reading_comprehension/general.spm')
+                        default='./models/sentencepiece/astro-ph.model')  # TODO: this should be modified to the general text spm file
     parser.add_argument("--domain_spm_path",
                         type=str, help='path to the sentencepiece model trained from the target domain corpora',
-                        default='./data/dataset_reading_comprehension/domain.spm')
+                        default='./models/sentencepiece/astro-ph.model')
     parser.add_argument("--domain_name",
                         type=str, help='target domain name, e.g., `physics`, `mathematics`',
-                        default='astrophysics')
+                        default='astro-ph')
     # TODO: to be modified with what we get from the arxiv
 
     args = parser.parse_args()

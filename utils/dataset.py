@@ -4,6 +4,7 @@ import torch
 import more_itertools
 import os
 import re
+import yake
 
 from tqdm import tqdm
 from transformers import AutoTokenizer
@@ -265,6 +266,12 @@ class PaperAbstractsDatasetGeneration:
 
         df_urls = self.intersect_identifiers(df_urls, df_sources)
 
+        # settings for yake keyword extractor
+        language = "en"
+        max_ngram_size = 3
+
+        kw_extractor = yake.KeywordExtractor(lan=language, n=max_ngram_size, top=6)
+
         identifiers, titles, keywords, categories, mentioned_software, output_urls = [], [], [], [], [], []
 
         df_urls_identifiers_list = list(map(int, df_urls["identifier"].tolist()))
@@ -273,12 +280,17 @@ class PaperAbstractsDatasetGeneration:
 
             identifier = source['identifier']
 
+            abstract = source['description'].split(";Comment")[0]
+
             try:
                 if int(identifier) in np.array(df_urls_identifiers_list):
                     pattern_code = r"([^.?!]*\b(?:code|software)\b[^.?!]*[.?!])"
                     matches_code = re.findall(pattern_code, source['description'].split(";Comment")[0], flags=re.IGNORECASE)
                     pattern_kw = r"(?:Keywords|KeyWords|keywords):\s*(.+?)(?:[.;]|$)"
                     match_kw = re.search(pattern_kw, source['description'].split(";Comment")[0])
+
+                    keywords_to_append = kw_extractor.extract_keywords(abstract)
+                    keywords_to_append = [kw[0] for kw in keywords_to_append]
 
                     identifiers.append(int(identifier))
                     titles.append(source['title'])
@@ -288,10 +300,10 @@ class PaperAbstractsDatasetGeneration:
                         keywords.append(match_kw.group(1).strip())
                         mentioned_software.append(matches_code)
                     elif matches_code:
-                        keywords.append('')
+                        keywords.append(keywords_to_append)
                         mentioned_software.append(matches_code)
                     else:
-                        keywords.append('')
+                        keywords.append(keywords_to_append)
                         mentioned_software.append('')
             except Exception as e:
                 continue
