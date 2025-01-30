@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import torch
 import more_itertools
@@ -12,18 +13,21 @@ from datasets import Dataset, load_dataset
 class PaperAbstractsDatasetGeneration:
     def __init__(
             self,
-            path_in: str = None,
+            path_in_url_file: str = None,
+            path_in_csv: str = None,
             skip_rows: int = 0,
             max_num_abstracts: int = None,
             mask_astro_ph: bool = False,
             mask_hess: bool = False,
             save_dataframe_as_json: bool = False,
             save_dataframe_raw_texts: bool = False,
-            save_dataframe_code_mentions: bool = False
+            save_dataframe_code_mentions: bool = False,
+            save_dataframe_cross_checked_code_mentions: bool = False,
     ):
         """
 
-        :param path_in: Path, to the database of inputs.
+        :param path_in_url_file: str, path to the database of cleaned urls.
+        :param path_in_csv: str, to the database of inputs.
         :param skip_rows: int, how many rows to skip from the head of the database.
         :param max_num_abstracts: int, how many rows to be included. Each row consists of an abstract.
         :param mask_astro_ph: bool, whether to consider only abstracts classified as astro-ph
@@ -31,10 +35,12 @@ class PaperAbstractsDatasetGeneration:
         :param save_dataframe_as_json: bool, whether to save the dataset as a jsonl file.
         :param save_dataframe_raw_texts: bool, whether to save the dataset of titles + raw texts.
         :param save_dataframe_code_mentions: bool, whether to save the dataset containing the software mentions.
+        :param save_dataframe_cross_checked_code_mentions: bool,
         """
 
         self.save_dataframe_code_mentions = save_dataframe_code_mentions
-        self.csv_path = path_in if path_in else "./data/abstract_database/abstracts.csv"
+        self.url_file_path = path_in_url_file
+        self.csv_path = path_in_csv if path_in_csv else "./data/database/abstracts.csv"
 
         self.mask_astro_ph = mask_astro_ph
         self.mask_hess = mask_hess
@@ -50,6 +56,10 @@ class PaperAbstractsDatasetGeneration:
         self.list_sources = self.extract_sources()
 
         self.dict_code_mentions = self.extract_code_mentions()
+
+        if self.url_file_path is not None:
+            self.dataframe_urls = self.load_data_urls()
+            self.dict_cross_checked_code_mentions = self.cross_check_extract_code_mentions()
 
         # TODO: this may become available with a bool option
         self.list_bodies = self.extract_bodies()
@@ -67,6 +77,9 @@ class PaperAbstractsDatasetGeneration:
             self.dataframe_code_mentions = self.create_dataframe_code_mentions()
             self.save_dataframe_code_mentions_as_csv()
 
+        if save_dataframe_cross_checked_code_mentions:
+            self.dataframe_cross_checked_code_mentions = self.create_dataframe_cross_checked_code_mentions()
+            self.save_dataframe_cross_checked_code_mentions_as_csv()
 
     def load_data(self) -> pd.DataFrame:
 
@@ -91,6 +104,22 @@ class PaperAbstractsDatasetGeneration:
             dataframe_out = dataframe
 
         return dataframe_out
+
+    def load_data_urls(self):
+
+        dataframe = pd.read_csv(
+            self.url_file_path,
+            names=["identifier", "url"],
+            sep='\t',
+            skiprows=self.skip_rows,
+            nrows=self.max_num_abstracts,
+            on_bad_lines='skip',
+            keep_default_na=False
+        )
+
+        # TODO: not yet implemented the astro-ph and H.E.S.S. masks here, this dataframe may not be of the same length as the one from load_data...
+
+        return dataframe
 
     def extract_queries(self) -> list:
 
@@ -168,7 +197,7 @@ class PaperAbstractsDatasetGeneration:
 
     def extract_code_mentions(self) -> dict:
 
-        print("Extracting where the code is mentioned...")
+        print("Extracting where code is mentioned...")
 
         sources = self.dataframe_abstracts[['title', 'description', 'category']]
         titles, keywords, categories, mentioned_software, urls = [], [], [], [], []
@@ -180,10 +209,13 @@ class PaperAbstractsDatasetGeneration:
 
                     pattern_code = r"([^.?!]*\b(?:code|software)\b[^.?!]*[.?!])"
                     matches_code = re.findall(pattern_code, source['description'].split(";Comment")[0], flags=re.IGNORECASE)
+
                     pattern_kw = r"(?:Keywords|KeyWords|keywords):\s*(.+?)(?:[.;]|$)"
                     match_kw = re.search(pattern_kw, source['description'].split(";Comment")[0])
+
                     pattern_url =  re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
                     matches_url = pattern_url.findall(source['description'].split(";Comment")[0])
+
                     if match_kw and matches_code and matches_url:
                         titles.append(source['title'])
                         keywords.append(match_kw.group(1).strip())
@@ -214,6 +246,58 @@ class PaperAbstractsDatasetGeneration:
 
         return {'title': titles, 'keywords': keywords, 'category': categories, 'mentioned_software': mentioned_software, 'urls': urls}
 
+    def intersect_identifiers(self, df_urls, df_sources):
+
+        identifiers_from_urls = df_urls["identifier"].to_numpy()
+        identifiers_from_sources = df_sources["identifier"].to_numpy()
+        identifiers_from_sources = [int(identifier) for identifier in identifiers_from_sources if "/" not in identifier]
+
+        intersection_urls = np.intersect1d(ar1=identifiers_from_urls.astype(int), ar2=identifiers_from_sources)
+
+        mask_identifiers_urls = np.isin(identifiers_from_urls, intersection_urls)
+
+        return df_urls[mask_identifiers_urls]
+
+    def cross_check_extract_code_mentions(self):
+
+        df_urls = self.dataframe_urls
+        df_sources = self.dataframe_abstracts[['identifier', 'title', 'description', 'category']]
+
+        df_urls = self.intersect_identifiers(df_urls, df_sources)
+
+        identifiers, titles, keywords, categories, mentioned_software, output_urls = [], [], [], [], [], []
+
+        df_urls_identifiers_list = list(map(int, df_urls["identifier"].tolist()))
+
+        for index, source in tqdm(df_sources.iterrows(), total=len(df_sources)):
+
+            identifier = source['identifier']
+
+            try:
+                if int(identifier) in np.array(df_urls_identifiers_list):
+                    pattern_code = r"([^.?!]*\b(?:code|software)\b[^.?!]*[.?!])"
+                    matches_code = re.findall(pattern_code, source['description'].split(";Comment")[0], flags=re.IGNORECASE)
+                    pattern_kw = r"(?:Keywords|KeyWords|keywords):\s*(.+?)(?:[.;]|$)"
+                    match_kw = re.search(pattern_kw, source['description'].split(";Comment")[0])
+
+                    identifiers.append(int(identifier))
+                    titles.append(source['title'])
+                    categories.append(source['category'])
+                    output_urls.append(df_urls[df_urls["identifier"] == int(identifier)]["url"].values)
+                    if match_kw and matches_code:
+                        keywords.append(match_kw.group(1).strip())
+                        mentioned_software.append(matches_code)
+                    elif matches_code:
+                        keywords.append('')
+                        mentioned_software.append(matches_code)
+                    else:
+                        keywords.append('')
+                        mentioned_software.append('')
+            except Exception as e:
+                continue
+
+        return {'identifier': identifiers, 'title': titles, 'keywords': keywords, 'category': categories, 'mentioned_software': mentioned_software, 'urls': output_urls}
+
     def create_dataframe_prompt_response_source(self) -> pd.DataFrame:
 
         list_prompts = self.list_queries
@@ -231,21 +315,22 @@ class PaperAbstractsDatasetGeneration:
 
         list_bodies = self.list_bodies
         list_titles = self.list_titles
+        list_identifiers = self.dataframe_abstracts['identifier'].tolist()
 
-        dataframe_out = pd.DataFrame(columns=['raw_texts'])
+        dataframe_out = pd.DataFrame(columns=['identifier', 'raw_texts'])
 
         for index, body in enumerate(list_bodies):
-            dataframe_out.loc[len(dataframe_out)] = [list_titles[index] + '\n' + body]
+            dataframe_out.loc[len(dataframe_out)] = [list_identifiers[index], list_titles[index] + '\n' + body]
 
         return dataframe_out
 
     def create_dataframe_code_mentions(self):
 
-        dict_code_mentions = self.dict_code_mentions
+        return pd.DataFrame(self.dict_code_mentions)
 
-        dataframe_out = pd.DataFrame(dict_code_mentions)
+    def create_dataframe_cross_checked_code_mentions(self):
 
-        return dataframe_out
+        return pd.DataFrame(self.dict_cross_checked_code_mentions)
 
     def save_dataframe_prompt_response_source_as_json(self):
 
@@ -305,6 +390,27 @@ class PaperAbstractsDatasetGeneration:
         )
 
         self.dataframe_code_mentions.to_csv(name_save_file, index=True)
+
+    def save_dataframe_cross_checked_code_mentions_as_csv(self):
+
+        path_to_dir = "./data/dataset/"
+        if not os.path.exists(path_to_dir):
+            os.makedirs(path_to_dir)
+
+        name_save_file = path_to_dir + (
+            f"dataset_cross_checked_code_mentions_astroph{int(self.mask_astro_ph)}"
+            f"_hess{int(self.mask_hess)}"
+            f"_skiprows{self.skip_rows}"
+            f"_maxrows{self.max_num_abstracts}.csv") if self.max_num_abstracts is not None else path_to_dir + (
+            f"dataset_cross_checked_code_mentions_astroph{int(self.mask_astro_ph)}"
+            f"_hess{int(self.mask_hess)}"
+            f"_skiprows{self.skip_rows}"
+            f"_maxrows{len(self.dataframe_cross_checked_code_mentions)}.csv"
+        )
+
+        self.dataframe_cross_checked_code_mentions.to_csv(name_save_file, index=True)
+
+
 
 def load_pyarrow_dataset(path_to_json_dataset: str, split_train_test: float = None):
     """

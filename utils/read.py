@@ -6,16 +6,13 @@ import re
 
 TYPES = ['nli', 'common_reason', 'paraphrase', 'word2text', 'summarize', 'text_completion']
 
-
 def remove_double_space(string):
     return re.sub("[ ]{2,}", " ", string)
 
-
 def get_max_workers():
-    # create a process pool with the default number of worker processes
-    pool = ProcessPoolExecutor()
+    pool_exec = ProcessPoolExecutor()
     # report the number of worker processes chosen by default
-    max_workers = pool._max_workers
+    max_workers = pool_exec._max_workers
     return max_workers
 
 
@@ -40,6 +37,7 @@ class BaseType(object):
     def __init__(self):
         # NOTE: we use a simple blank space to connect input and output
         # you may try other connectors like `<eot>` in LIMA or `## Response:` in Orca
+        self.mine_regex = None
         self.qa_deliminator = ' '
         self.max_subcategory_num = 2  # limit the number of examples per subcategory
         self.max_seq_len = 2048
@@ -109,6 +107,15 @@ class BaseType(object):
             mined_num += len(mined_dic[class_name])
         return mined_dic, mined_num
 
+    def collect_mined(self, tup, class_name):
+        pass
+
+    def get_all_templates(self, entry, random_seed):
+        pass
+
+    def get_all_templates_qa(self, entry, random_seed):
+        pass
+
 
 @type_map.add("nli")
 class nli(BaseType):
@@ -138,42 +145,25 @@ class nli(BaseType):
             return [
                 # Basic Templates
                 ("{premise}\nBased on the sentence above can we infer that \"{hypothesis}\"?", "{answer}"),
-                (
-                "{premise}\nBased on this sentence can we infer that the following sentence is true?\n{hypothesis}\nAnswer:",
-                "{answer}"),
+                ("{premise}\nBased on this sentence can we infer that the following sentence is true?\n{hypothesis}\nAnswer:", "{answer}"),
                 ("{premise}\nCan we draw the following hypothesis?\n{hypothesis}\n{options_}", "{answer}"),
-                ("{premise}\nDoes this next sentence follow, given the preceding text?\n{hypothesis}\nAnswer:",
-                 "{answer}"),
-                (
-                "Can we draw the following hypothesis from the context?\nContext: {premise}\nHypothesis: {hypothesis}\nAnswer:",
-                "{answer}"),
-                ("{hypothesis}\nDetermine if the sentence is true based on the text below:\n{premise}\nAnswer:",
-                 "{answer}"),
+                ("{premise}\nDoes this next sentence follow, given the preceding text?\n{hypothesis}\nAnswer:", "{answer}"),
+                ("Can we draw the following hypothesis from the context?\nContext: {premise}\nHypothesis: {hypothesis}\nAnswer:", "{answer}"),
+                ("{hypothesis}\nDetermine if the sentence is true based on the text below:\n{premise}\nAnswer:", "{answer}"),
                 ("Premise: {premise}\nHypothesis: {hypothesis}\nDoes the premise entail the hypothesis?", "{answer}"),
-                (
-                "Premise: {premise}\nHypothesis: {hypothesis}\nIs the hypothesis entailed by the premise?", "{answer}"),
-                (
-                "Here is a premise:\n{premise}\nHere is a hypothesis:\n{hypothesis}\nIs it possible to infer that if the premise is true, then so is the hypothesis?",
-                "{answer}"),
-                (
-                "Sentence 1: {premise}\nSentence 2: {hypothesis}\nIs this second sentence entailed by the first sentence?\n{options_}",
-                "{answer}"),
-                ("Based on the premise \"{premise}\", can we infer the hypothesis \"{hypothesis}\" is true?",
-                 "{answer}"),
-                ("Premise:\n\"{premise}\" Based on this premise, is the hypothesis \"{hypothesis}\" true?\n{options_}",
-                 "{answer}"),
+                ("Premise: {premise}\nHypothesis: {hypothesis}\nIs the hypothesis entailed by the premise?", "{answer}"),
+                ("Here is a premise:\n{premise}\nHere is a hypothesis:\n{hypothesis}\nIs it possible to infer that if the premise is true, then so is the hypothesis?", "{answer}"),
+                ("Sentence 1: {premise}\nSentence 2: {hypothesis}\nIs this second sentence entailed by the first sentence?\n{options_}", "{answer}"),
+                ("Based on the premise \"{premise}\", can we infer the hypothesis \"{hypothesis}\" is true?", "{answer}"),
+                ("Premise:\n\"{premise}\" Based on this premise, is the hypothesis \"{hypothesis}\" true?\n{options_}", "{answer}"),
                 ("If {premise}, can we infer that \"{hypothesis}\"?", "{answer}"),
                 ("{premise}\nDoes it follow that \"{hypothesis}\"?\n{options_}", "{answer}"),
                 ("Question: If \"{premise}\", does this mean that \"{hypothesis}\"?\nAnswer:", "{answer}"),
                 ("If \"{premise}\", can we infer \"{hypothesis}\"?", "{answer}"),
                 ("If \"{premise}\", does it logically follow that \"{hypothesis}\"?", "{answer}"),
                 ("Based on the sentence \"{premise}\", is the sentence \"{hypothesis}\" a true sentence?", "{answer}"),
-                (
-                "Premise: {premise}\nHypothesis: {hypothesis}\nCan we infer that the hypothesis is true if the premise is true?",
-                "{answer}"),
-                (
-                "Here is a premise: \"{premise}\"\nHere is a hypothesis: \"{hypothesis}\"\nDoes the premise tell us whether the hypothesis is true?",
-                "{answer}"),
+                ("Premise: {premise}\nHypothesis: {hypothesis}\nCan we infer that the hypothesis is true if the premise is true?", "{answer}"),
+                ("Here is a premise: \"{premise}\"\nHere is a hypothesis: \"{hypothesis}\"\nDoes the premise tell us whether the hypothesis is true?", "{answer}"),
                 ("Is the premise \"{premise}\" true if \"{hypothesis}\"?\n{options_}", "{answer}"),
                 ("If \"{premise}\", can we infer that \"{hypothesis}\"?\n{options_}", "{answer}"),
                 ("If \"{premise}\", is \"{hypothesis}\" correct?", "{answer}"),
@@ -181,39 +171,20 @@ class nli(BaseType):
                 ("Does \"{hypothesis}\" appear to be an accurate statement based on \"{premise}\"?", "{answer}"),
                 ("Is it possible to draw the statement that \"{hypothesis}\" if \"{premise}\"?", "{answer}"),
                 ("Is \"{hypothesis}\" true if \"{premise}\"?\n{options_}", "{answer}"),
-                ("Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nIs sentence 2 true, based on sentence 1?",
-                 "{answer}"),
+                ("Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nIs sentence 2 true, based on sentence 1?","{answer}"),
 
                 # fill-in-the-blank:
-                (
-                "Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nWhich word is the best to connect them? Therefore, However, or Moreover?",
-                "{connect_answer}"),
-                (
-                "Choose the most suitable word to link the following sentences:\n1. {premise}\n2. {hypothesis}\nOptions:\n- Therefore\n- However\n- Moreover",
-                "{connect_answer}"),
-                (
-                "Connect the following sentence: {premise}\nChoose the appropriate word to link it with: \"{hypothesis}\"\nOptions: Therefore, However, Moreover",
-                "{connect_answer}"),
-                (
-                "Given the sentence: {premise}\nChoose the appropriate word from the options (Therefore, However, Moreover) to connect it with: \"{hypothesis}\"\nWord:",
-                "{connect_answer}"),
-                (
-                "Connect the sentence: {premise}\nFrom the choices (Therefore, However, Moreover), select the word that best links it to: \"{hypothesis}\"\nAnswer:",
-                "{connect_answer}"),
+                ("Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nWhich word is the best to connect them? Therefore, However, or Moreover?", "{connect_answer}"),
+                ("Choose the most suitable word to link the following sentences:\n1. {premise}\n2. {hypothesis}\nOptions:\n- Therefore\n- However\n- Moreover", "{connect_answer}"),
+                ("Connect the following sentence: {premise}\nChoose the appropriate word to link it with: \"{hypothesis}\"\nOptions: Therefore, However, Moreover", "{connect_answer}"),
+                ("Given the sentence: {premise}\nChoose the appropriate word from the options (Therefore, However, Moreover) to connect it with: \"{hypothesis}\"\nWord:", "{connect_answer}"),
+                ("Connect the sentence: {premise}\nFrom the choices (Therefore, However, Moreover), select the word that best links it to: \"{hypothesis}\"\nAnswer:", "{connect_answer}"),
 
                 # relation classification
-                (
-                "Assess the relationship between Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nIs it characterized as Entailment, Neutral, or Contradictory?",
-                "{relation_answer}"),
-                (
-                "Given Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nHow would you describe the relationship between these two sentences? Entailment, Neutral, or Contradictory?",
-                "{relation_answer}"),
-                (
-                "Considering Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nHow do you perceive the connection between these two sentences in terms of their relationship?",
-                "{relation_answer}"),
-                (
-                "Assess the relationship between Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nWould you categorize their connection as Entailment, Neutral, or Contradictory?",
-                "{relation_answer}"),
+                ("Assess the relationship between Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nIs it characterized as Entailment, Neutral, or Contradictory?", "{relation_answer}"),
+                ("Given Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nHow would you describe the relationship between these two sentences? Entailment, Neutral, or Contradictory?", "{relation_answer}"),
+                ("Considering Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nHow do you perceive the connection between these two sentences in terms of their relationship?", "{relation_answer}"),
+                ("Assess the relationship between Sentence 1: \"{premise}\"\nSentence 2: \"{hypothesis}\"\nWould you categorize their connection as Entailment, Neutral, or Contradictory?", "{relation_answer}"),
             ]
         elif type == 'generate':
             if entry['label'] == 'Entail':
@@ -221,43 +192,26 @@ class nli(BaseType):
                     ('Complete the following sentence\n{premise} Accordingly,', "{hypothesis}"),
                     ('{premise} Therefore:', "{hypothesis}"),
                     ('{premise} Thus?', "{hypothesis}"),
-                    (
-                    "Based on the statement \"{premise}\", provide a continuation using the word \"Hence\" to express the following idea.\nContinuation:",
-                    "{hypothesis}"),
-                    (
-                    "Question: Complete the following statement using the word \"Therefore\" in relation to \"{premise}\"\nAnswer:",
-                    "{hypothesis}"),
+                    ("Based on the statement \"{premise}\", provide a continuation using the word \"Hence\" to express the following idea.\nContinuation:", "{hypothesis}"),
+                    ("Question: Complete the following statement using the word \"Therefore\" in relation to \"{premise}\"\nAnswer:", "{hypothesis}"),
                     ("{premise} {verbalizer}?", "{hypothesis}"),
                     ("{premise} {verbalizer}:", "{hypothesis}"),
 
                     # more variations
-                    ("{premise}\nProduce a sentence that encompasses the concept from the above statement. Sentence:",
-                     "{hypothesis}"),
-                    (
-                    "\"{premise}\" Generate a sentence that follows from the notion presented in the previous statement.",
-                    "{hypothesis}"),
-                    ("{premise}\nCraft a sentence that develops the idea put forth in the preceding statement.",
-                     "{hypothesis}"),
-                    (
-                    "{premise}\nCreate a sentence that is a logical extension of the idea in the previous statement.\nAnswer:",
-                    "{hypothesis}"),
-                    (
-                    "\"{premise}\" Formulate a sentence that is consistent with the concept presented in the prior statement.",
-                    "{hypothesis}"),
-                    ("{premise}\nDevelop a sentence that builds upon the thought conveyed in the above statement.",
-                     "{hypothesis}"),
+                    ("{premise}\nProduce a sentence that encompasses the concept from the above statement. Sentence:", "{hypothesis}"),
+                    ("\"{premise}\" Generate a sentence that follows from the notion presented in the previous statement.", "{hypothesis}"),
+                    ("{premise}\nCraft a sentence that develops the idea put forth in the preceding statement.", "{hypothesis}"),
+                    ("{premise}\nCreate a sentence that is a logical extension of the idea in the previous statement.\nAnswer:", "{hypothesis}"),
+                    ("\"{premise}\" Formulate a sentence that is consistent with the concept presented in the prior statement.", "{hypothesis}"),
+                    ("{premise}\nDevelop a sentence that builds upon the thought conveyed in the above statement.", "{hypothesis}"),
                 ]
             elif entry['label'] == 'Neutral':
                 return [
                     ('Complete the following sentence: {premise} {verbalizer},', "{hypothesis}"),
                     ('Complete the following sentence\n{premise} {verbalizer}:', "{hypothesis}"),
                     ('{premise} {verbalizer}?', "{hypothesis}"),
-                    (
-                    "Based on the statement {premise}, provide a continuation using the word \"{verbalizer}\" to express the following idea.\nContinuation:",
-                    "{hypothesis}"),
-                    (
-                    "Question: Complete the following statement using the word \"{verbalizer}\" in relation to \"{premise}\"\nAnswer:",
-                    "{hypothesis}"),
+                    ("Based on the statement {premise}, provide a continuation using the word \"{verbalizer}\" to express the following idea.\nContinuation:", "{hypothesis}"),
+                    ("Question: Complete the following statement using the word \"{verbalizer}\" in relation to \"{premise}\"\nAnswer:", "{hypothesis}"),
                 ]
             elif entry['label'] == 'Contradict':
                 return [
@@ -266,11 +220,8 @@ class nli(BaseType):
                     ('Complete the following sentence\n{premise} However?', "{hypothesis}"),
                     ("Sentence: {premise} {verbalizer},\nHow do you finish this sentence?", "{hypothesis}"),
                     ("{premise} {verbalizer}:", "{hypothesis}"),
-                    (
-                    "Based on the statement {premise}, provide a continuation using \"In contrast\" to express the following idea.",
-                    "{hypothesis}"),
-                    ("Complete the following statement using the word \"But\" in relation to \"{premise}\".",
-                     "{hypothesis}"),
+                    ("Based on the statement {premise}, provide a continuation using \"In contrast\" to express the following idea.", "{hypothesis}"),
+                    ("Complete the following statement using the word \"But\" in relation to \"{premise}\".", "{hypothesis}"),
                 ]
 
     def format_single_demo(self, entry, random_seed):
@@ -403,16 +354,12 @@ class common_reason(BaseType):
                 ("Given that: {effect}\nWhat was the triggering cause?", "{cause}"),
                 ("Explore the background of: \"{effect}\"\nWhat could have instigated it?", "{cause}"),
                 ("What played a role in bringing about: {effect}?", "{cause}"),
-                ("Delve into the circumstances behind \"{effect}\"\nWhat could be the originating cause? Answer:",
-                 "{cause}"),
+                ("Delve into the circumstances behind \"{effect}\"\nWhat could be the originating cause? Answer:", "{cause}"),
                 ('Complete the following sentence\n{effect} because of', "{cause}"),
                 ('Your task is to complete the following sentence: {effect} due to', "{cause}"),
                 ('{effect} owing to\nHow would you complete it:', "{cause}"),
-                (
-                "Based on the statement {effect}, provide a continuation using \"{verbalizer}\" to express the following idea.\nContinuation:",
-                "{cause}"),
-                ("Question: Complete the following statement using \"{verbalizer}\" in relation to \"{effect}\".",
-                 "{cause}"),
+                ("Based on the statement {effect}, provide a continuation using \"{verbalizer}\" to express the following idea.\nContinuation:", "{cause}"),
+                ("Question: Complete the following statement using \"{verbalizer}\" in relation to \"{effect}\".", "{cause}"),
                 ("Answer the question...{effect} {verbalizer}?", "{cause}"),
                 ("{effect} {verbalizer}:", "{cause}"),
             ]
@@ -476,25 +423,17 @@ class paraphrase(BaseType):
     def get_all_templates(self, entry, random_seed):
         if entry['label'] == 'Different':
             return [
-                ("\"{sentence1}\" Generate a sentence that expresses a contrasting idea to the previous statement.",
-                 "{sentence2}"),
+                ("\"{sentence1}\" Generate a sentence that expresses a contrasting idea to the previous statement.", "{sentence2}"),
                 ("Can you create a sentence that contradicts the meaning of \"{sentence1}\"?", "{sentence2}"),
-                ("Given the sentence \"{sentence1}\", can you come up with a statement that contradicts its meaning?",
-                 "{sentence2}"),
-                ("Here is a sentence: \"{sentence1}\". Now, provide a sentence that contradicts its meaning.",
-                 "{sentence2}"),
-                ("Your challenge is to create a sentence that expresses the opposite of \"{sentence1}\". Answer:",
-                 "{sentence2}"),
+                ("Given the sentence \"{sentence1}\", can you come up with a statement that contradicts its meaning?", "{sentence2}"),
+                ("Here is a sentence: \"{sentence1}\". Now, provide a sentence that contradicts its meaning.", "{sentence2}"),
+                ("Your challenge is to create a sentence that expresses the opposite of \"{sentence1}\". Answer:", "{sentence2}"),
                 ("Contradict the meaning of the sentence \"{sentence1}\" by crafting another sentence.", "{sentence2}"),
                 ("Compose a sentence that contradicts the idea conveyed in \"{sentence1}\".", "{sentence2}"),
-                ("Can you generate a sentence that has a conflicting meaning compared to \"{sentence1}\"?",
-                 "{sentence2}"),
-                ("In opposition to the sentence \"{sentence1}\", create a sentence with a contradictory meaning.",
-                 "{sentence2}"),
-                ("Your task is to provide a sentence that negates or contradicts the message of \"{sentence1}\".",
-                 "{sentence2}"),
-                ("Given the sentence \"{sentence1}\", come up with a different sentence that contradicts its meaning?",
-                 "{sentence2}"),
+                ("Can you generate a sentence that has a conflicting meaning compared to \"{sentence1}\"?", "{sentence2}"),
+                ("In opposition to the sentence \"{sentence1}\", create a sentence with a contradictory meaning.", "{sentence2}"),
+                ("Your task is to provide a sentence that negates or contradicts the message of \"{sentence1}\".", "{sentence2}"),
+                ("Given the sentence \"{sentence1}\", come up with a different sentence that contradicts its meaning?", "{sentence2}"),
                 ("Craft a sentence that goes against the meaning of the sentence \"{sentence1}\".", "{sentence2}"),
             ]
         elif entry['label'] == 'Similar':
@@ -502,16 +441,12 @@ class paraphrase(BaseType):
                 ('Complete the following sentence: {sentence1} Namely,', "{sentence2}"),
                 ('{sentence1} In other words\nProvide the missing portion of the above sentence:', "{sentence2}"),
                 ('Q: {sentence1} That is to say?', "{sentence2}"),
-                (
-                "Question: Complete the following statement using \"{verbalizer}\" in relation to \"{sentence1}\"\nAnswer:",
-                "{sentence2}"),
+                ("Question: Complete the following statement using \"{verbalizer}\" in relation to \"{sentence1}\"\nAnswer:", "{sentence2}"),
                 ("Question: {sentence1} {verbalizer}?", "{sentence2}"),
                 ("{sentence1} {verbalizer},\nHow do you finish this sentence?", "{sentence2}"),
                 ("Extend the thought in this sentence: {sentence1} To elaborate further:", "{sentence2}"),
-                ("Build upon the statement {sentence1} by utilizing \"{verbalizer}\" to express the following concept.",
-                 "{sentence2}"),
-                ("\"{sentence1}\" Generate a sentence that expresses a further elaboration to the previous statement.",
-                 "{sentence2}"),
+                ("Build upon the statement {sentence1} by utilizing \"{verbalizer}\" to express the following concept.", "{sentence2}"),
+                ("\"{sentence1}\" Generate a sentence that expresses a further elaboration to the previous statement.", "{sentence2}"),
                 ("\"{sentence1}\" Expand on the previous statement:", "{sentence2}"),
                 ("{sentence1}\nProvide an explanatory sentence:", "{sentence2}"),
             ]
@@ -546,7 +481,7 @@ class word2text(BaseType):
             'definition': r'([\s]+)([^.!?,;\s\"]{10,})([\s]+)(is defined as|\'s definition is)([\s]+)([^.!?\n]{20,}[.!?]+)([\s]+)',
             'topic': r'([.!?]+[\s]+)([^.!?,;\n]{20,})([\s]+)(was about|talks about|is about|\'s topic is)([\s]+)([^.!?\n]{20,}[.!?]+)([\s]+)',
         }
-        # `topic` is defined as a summaization task in our paper,
+        # `topic` is defined as a summarization task in our paper,
         # here we categorize it to word2text for simple code implementation
 
         self.compile_regex()
@@ -613,49 +548,31 @@ class word2text(BaseType):
     def get_all_templates(self, entry, random_seed):
         if entry['relation'] == 'word2text':
             return [
-                ("Concepts: {tripleset}\nWrite a sentence that includes all these {domain} words.\nSentence:",
-                 "{target}"),
-                (
-                "Concepts: {tripleset}\nFind a sentence in the article that includes all these words in the {domain} domain.\nSentence:",
-                "{target}"),
+                ("Concepts: {tripleset}\nWrite a sentence that includes all these {domain} words.\nSentence:", "{target}"),
+                ("Concepts: {tripleset}\nFind a sentence in the article that includes all these words in the {domain} domain.\nSentence:", "{target}"),
                 ("Keywords: {tripleset}\nWhat is a sentence that includes all these {domain} keywords?", "{target}"),
-                (
-                "Here are some concepts: {tripleset}\nWhat is a sentence about these {domain} concepts in the article?",
-                "{target}"),
+                ("Here are some concepts: {tripleset}\nWhat is a sentence about these {domain} concepts in the article?", "{target}"),
                 ("Produce a sentence which mentions all of these {domain} concepts: {tripleset}\nAnswer:", "{target}"),
                 ("Write a {domain} sentence about the following things:\n{tripleset}\nAnswer:", "{target}"),
-                ("Generate a sentence that includes all the following {domain} words: {tripleset}. Sentence:",
-                 "{target}"),
+                ("Generate a sentence that includes all the following {domain} words: {tripleset}. Sentence:", "{target}"),
                 ("Sentence: {target}\nWhat are the keywords about {domain} in this sentence?", "{tripleset}"),
-                ("What are the most important words about {domain} in the following sentence\n{target}\nWords:",
-                 "{tripleset}"),
+                ("What are the most important words about {domain} in the following sentence\n{target}\nWords:", "{tripleset}"),
                 ("{target}\nIdentify the most salient words about {domain} in the above sentence.", "{tripleset}"),
                 ("Concepts: {tripleset}\nWhat would a {domain} sentence about these concepts be like?", "{target}"),
                 ("Here are some words about {domain}: {tripleset}.\nWrite a sentence that describes them.", "{target}"),
-                ("Here are some {domain} words: {tripleset}.\nTell me a sentence that describes them in the article.",
-                 "{target}"),
-                (
-                "Here are some concepts about {domain}: {tripleset}.\nGenerate a detailed description of them.\nDescription:",
-                "{target}"),
+                ("Here are some {domain} words: {tripleset}.\nTell me a sentence that describes them in the article.", "{target}"),
+                ("Here are some concepts about {domain}: {tripleset}.\nGenerate a detailed description of them.\nDescription:", "{target}"),
                 ("Generate a {domain} sentence about: {tripleset}\nSentence:", "{target}"),
                 ("Write a {domain} sentence about [{tripleset}].", "{target}"),
-                (
-                "Produce a long descriptive sentence about {domain} that uses all these words: {tripleset}.\nSentence:",
-                "{target}"),
-                ("Create a set of three {domain} concepts in the following sentence.\n{target}\nConcepts:",
-                 "{tripleset}"),
-                ("{tripleset}\nWhat is the sentence in the article that verbalizes these {domain} concepts?",
-                 "{target}"),
-                ("Keywords: {tripleset}\nTell me the sentence in the article about these {domain} concepts.\nSentence:",
-                 "{target}"),
+                ("Produce a long descriptive sentence about {domain} that uses all these words: {tripleset}.\nSentence:", "{target}"),
+                ("Create a set of three {domain} concepts in the following sentence.\n{target}\nConcepts:", "{tripleset}"),
+                ("{tripleset}\nWhat is the sentence in the article that verbalizes these {domain} concepts?", "{target}"),
+                ("Keywords: {tripleset}\nTell me the sentence in the article about these {domain} concepts.\nSentence:", "{target}"),
                 ("Here are some {domain} keywords: {tripleset}.\nWrite a sentence that includes them.", "{target}"),
                 ("Generate a sentence that includes these {domain} keywords [{tripleset}].", "{target}"),
-                ("Find a sentence in the above article that includes the following {domain} words: [{tripleset}].",
-                 "{target}"),
-                ("Produce a long descriptive {domain} sentence that uses all these words: {tripleset}\nAnswer:",
-                 "{target}"),
-                (
-                "Sentence: {target}\nWhat keywords about {domain} can be extracted from this sentence?", "{tripleset}"),
+                ("Find a sentence in the above article that includes the following {domain} words: [{tripleset}].", "{target}"),
+                ("Produce a long descriptive {domain} sentence that uses all these words: {tripleset}\nAnswer:", "{target}"),
+                ("Sentence: {target}\nWhat keywords about {domain} can be extracted from this sentence?", "{tripleset}"),
             ]
         elif entry['relation'] == 'definition':
             return [
@@ -1097,10 +1014,10 @@ class overall(BaseType):
             read_func = np.random.choice(
                 [summarize_only, completion_only, summarize_and_completion, no_summarize_or_completion],
                 p=[0.4, 0.1, 0.4, 0.1])
-        elif ('summarize' in insert_types and overall_entry['summarize']['title'] is not None):
+        elif 'summarize' in insert_types and overall_entry['summarize']['title'] is not None:
             np.random.seed(seed)
             read_func = np.random.choice([summarize_only, no_summarize_or_completion], p=[0.5, 0.5])
-        elif ('text_completion' in insert_types and len(overall_entry['text_completion']['sents']) >= 2):
+        elif 'text_completion' in insert_types and len(overall_entry['text_completion']['sents']) >= 2:
             np.random.seed(seed)
             read_func = np.random.choice([completion_only, no_summarize_or_completion], p=[0.5, 0.5])
         else:
