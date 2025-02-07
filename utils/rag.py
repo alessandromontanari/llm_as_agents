@@ -7,7 +7,7 @@ class State(TypedDict):
     context: List[Document]
     answer: str
 
-def retrieve(state: State, vector_store_titles, vector_store_keywords):
+def retrieve_csv_database(state: State, vector_store_titles, vector_store_keywords):
 
     retrieved_docs_titles = vector_store_titles.similarity_search_with_score(state["question"], k=5)
     retrieved_docs_keywords = vector_store_keywords.similarity_search_with_score(state["question"], k=5)
@@ -47,7 +47,13 @@ def retrieve(state: State, vector_store_titles, vector_store_keywords):
 
     return {"context": output_documents}
 
+def retrieve_sql_database(state: State, vector_store):
+    retrieved_docs = vector_store.similarity_search_with_score(state["question"], k=5)
+    return {"context": retrieved_docs}
+
+
 def generate(state: State, prompt, llm):
+    # doc[0] because the documents in state are returned from a similarity_search_w_score, ergo a tuple of (doc, score)
     docs_content = "\n\n".join(doc[0].page_content for doc in state["context"])
     messages = prompt.invoke({"question": state["question"], "context": docs_content})
     response = llm.invoke(messages)
