@@ -17,7 +17,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain import hub
 from langchain_chroma import Chroma
 from langgraph.graph import START, StateGraph
-from utils.rag import State, retrieve, generate
+from utils.rag import State, retrieve_csv_database, generate
 from functools import partial
 import pandas as pd
 import warnings
@@ -80,7 +80,7 @@ def main():
     prompt = hub.pull("rlm/rag-prompt")
 
     graph_builder = StateGraph(State)
-    partial_retrieve = partial(retrieve, vector_store_titles=vector_store_titles, vector_store_keywords=vector_store_keywords)
+    partial_retrieve = partial(retrieve_csv_database, vector_store_titles=vector_store_titles, vector_store_keywords=vector_store_keywords)
     partial_generate = partial(generate, prompt=prompt, llm=llm)
     graph_builder.add_sequence([
         ("retrieve", partial_retrieve),
