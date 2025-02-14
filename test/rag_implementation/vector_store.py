@@ -12,7 +12,6 @@ from langchain.text_splitter import CharacterTextSplitter
 
 from langchain_chroma import Chroma
 import unittest
-import os
 import pandas as pd
 
 
