@@ -51,7 +51,8 @@ class PaperAbstractsDatasetGeneration:
 
         self.dataframe_abstracts = self.load_data()
 
-        # TODO: there may be a problem here with the extraction because for the different functions there are different exceptions thrown, most of the times not corresponding
+        # TODO: there may be a problem here with the extraction because for the different functions there are different exceptions thrown,
+        #  most of the times not corresponding
         self.list_queries = self.extract_queries()
 
         self.list_sources = self.extract_sources()
@@ -110,7 +111,8 @@ class PaperAbstractsDatasetGeneration:
 
         dataframe = pd.read_csv(
             self.url_file_path,
-            names=["identifier", "url"],
+            # names=["identifier", "url"],
+            header=0,
             sep='\t',
             skiprows=self.skip_rows,
             nrows=self.max_num_abstracts,
@@ -118,7 +120,12 @@ class PaperAbstractsDatasetGeneration:
             keep_default_na=False
         )
 
-        # TODO: not yet implemented the astro-ph and H.E.S.S. masks here, this dataframe may not be of the same length as the one from load_data...
+        # some identifiers may be ill-defined...
+        mask_identifiers = dataframe["identifier"].str.isdigit()
+        dataframe = dataframe[mask_identifiers]
+
+        # TODO: not yet implemented the astro-ph and H.E.S.S. masks here,
+        #  this dataframe may not be of the same length as the one from load_data...
 
         return dataframe
 
@@ -250,10 +257,11 @@ class PaperAbstractsDatasetGeneration:
     def intersect_identifiers(self, df_urls, df_sources):
 
         identifiers_from_urls = df_urls["identifier"].to_numpy()
+        identifiers_from_urls = [int(identifier) for identifier in identifiers_from_urls if identifier.isdigit()]
         identifiers_from_sources = df_sources["identifier"].to_numpy()
         identifiers_from_sources = [int(identifier) for identifier in identifiers_from_sources if "/" not in identifier]
 
-        intersection_urls = np.intersect1d(ar1=identifiers_from_urls.astype(int), ar2=identifiers_from_sources)
+        intersection_urls = np.intersect1d(ar1=identifiers_from_urls, ar2=identifiers_from_sources)
 
         mask_identifiers_urls = np.isin(identifiers_from_urls, intersection_urls)
 
@@ -265,6 +273,8 @@ class PaperAbstractsDatasetGeneration:
         df_sources = self.dataframe_abstracts[['identifier', 'title', 'description', 'category']]
 
         df_urls = self.intersect_identifiers(df_urls, df_sources)
+
+        print("Extracting and cross-checking software urls and the metadata of the corresponding identifier...")
 
         # settings for yake keyword extractor
         language = "en"
@@ -308,7 +318,8 @@ class PaperAbstractsDatasetGeneration:
             except Exception as e:
                 continue
 
-        return {'identifier': identifiers, 'title': titles, 'keywords': keywords, 'category': categories, 'mentioned_software': mentioned_software, 'urls': output_urls}
+        return {'identifier': identifiers, 'title': titles, 'keywords': keywords, 'category': categories,
+                'mentioned_software': mentioned_software, 'urls': output_urls}
 
     def create_dataframe_prompt_response_source(self) -> pd.DataFrame:
 
