@@ -306,7 +306,7 @@ class PaperAbstractsDatasetGeneration:
                     identifiers.append(int(identifier))
                     titles.append(source['title'])
                     categories.append(source['category'])
-                    output_urls.append(df_urls[df_urls["identifier"] == int(identifier)]["url"].values)
+                    output_urls.append(df_urls[df_urls["identifier"] == identifier]["url"].values)
                     if match_kw and matches_code:
                         keywords.append(match_kw.group(1).strip())
                         mentioned_software.append(matches_code)
