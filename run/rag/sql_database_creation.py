@@ -17,6 +17,25 @@ from utils.database import database_creation
 import pandas as pd
 from urllib.parse import urlparse
 import requests
+from tqdm import tqdm
+import logging
+
+log_file_path = "./logs/rag/"
+
+if not os.path.exists(log_file_path):
+    os.makedirs(log_file_path)
+
+full_path = __file__
+
+script_name = os.path.basename(full_path)[:-3]  # remove .py from the end
+
+logging.basicConfig(
+    filename=log_file_path+script_name+".log",
+    format="%(asctime)s - %(levelname)s - %(module)s - %(funcName)s: %(message)s",
+    level=logging.INFO,
+    filemode='w'
+)
+
 
 def main():
 
@@ -39,7 +58,9 @@ def main():
     language_for_db = []
 
     # Fetch repository details
-    for url in dataframe["urls"]:
+    for ii, url in tqdm(enumerate(dataframe["urls"]), total=len(dataframe["urls"])):
+
+        logging.info(f"Processing {ii+1} over {len(dataframe["urls"])} urls entries")
 
         if "git" in url:
 
@@ -65,9 +86,9 @@ def main():
                             language_for_db.append(
                                 data['language'] if data['language'] is not None else "Not specified")
                         else:
-                            print(f"Failed to fetch details for {individual}")
+                            logging.info(f"Failed to fetch details for {individual}")
                     except Exception as e:
-                        print(f"Skipping because of error {e}")
+                        logging.info(f"Skipping because of error {e}")
 
     # Insert the data in the database
     data_for_db = list(zip(url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db))
@@ -80,6 +101,7 @@ def main():
     db_cursor.execute('SELECT * FROM software')
 
     rows = db_cursor.fetchall()
+    print("Checking the rows in the database:")
     for row in rows:
         print(row)
 
