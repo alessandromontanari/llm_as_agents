@@ -39,14 +39,18 @@ logging.basicConfig(
 
 def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_lists_for_db):
 
-    (url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
-     identifier_for_db, title_for_db, keywords_for_db) = empty_lists_for_db
+    (identifier_for_software_db, url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+     identifier_for_paper_db, title_for_db, keywords_for_db) = empty_lists_for_db
 
     # TODO: change or remove the length limit for the dataframe. Or make it choosable.
 
-    for ii, row in tqdm(dataframe[0:5000].iterrows(), total=len(dataframe[0:5000])):
+    for ii, row in tqdm(dataframe[0:500].iterrows(), total=len(dataframe[0:500])):
 
         logging.info(f"Processing {ii+1} over {len(dataframe)} urls entries")
+
+        identifier_for_paper_db.append(row["identifier"])
+        title_for_db.append(row["title"])
+        keywords_for_db.append(row["keywords"])
 
         if "git" in row["urls"]:
 
@@ -73,9 +77,7 @@ def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_
                             stars_for_db.append(data['stargazers_count'])
                             language_for_db.append(data['language'] if data['language'] is not None else "Not specified")
 
-                            identifier_for_db.append(row["identifier"])
-                            title_for_db.append(row["title"])
-                            keywords_for_db.append(row["keywords"])
+                            identifier_for_software_db.append(row["identifier"])
                         else:
                             # from GitHub API
                             url_for_db.append(individual)
@@ -84,9 +86,7 @@ def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_
                             stars_for_db.append("Failed request")
                             language_for_db.append("Failed request")
 
-                            identifier_for_db.append(row["identifier"])
-                            title_for_db.append(row["title"])
-                            keywords_for_db.append(row["keywords"])
+                            identifier_for_software_db.append(row["identifier"])
 
                             logging.info(f"Failed to fetch details for {individual}")
                     except Exception as e:
@@ -95,15 +95,19 @@ def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_
     for ii, kw in enumerate(keywords_for_db):
         keywords_for_db[ii] = ",".join(kw[1:-1].split(", "))
 
-    return url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db, identifier_for_db, title_for_db, keywords_for_db
+    return (identifier_for_software_db, url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+            identifier_for_paper_db, title_for_db, keywords_for_db)
 
 
 
 def main():
 
-    table_name = "software"
-
-    db_connection, db_cursor = database_creation(path_dir='./data/database_sql/test/', database_name="example.db", table_name=table_name)
+    db_papers_connection, db_papers_cursor = database_creation(
+        path_dir='./data/database_sql/test/', database_name="paper_info.db", table_name="paper_info"
+    )
+    db_software_connection, db_software_cursor = database_creation(
+        path_dir='./data/database_sql/test/', database_name="software.db", table_name="software"
+    )
 
     dataframe = pd.read_csv(
         "./data/dataset/dataset_cross_checked_code_mentions_astroph1_hess0_skiprows0_maxrows60569.csv",
@@ -115,7 +119,8 @@ def main():
 
     headers = {"Authorization": f"token {github_token}"}
 
-    identifier_for_db = []
+    identifier_for_software_db = []
+    identifier_for_paper_db = []
     title_for_db = []
     keywords_for_db = []
     url_for_db = []
@@ -125,33 +130,46 @@ def main():
     language_for_db = []
 
     empty_lists_for_db = [
-        url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
-        identifier_for_db, title_for_db, keywords_for_db
+        identifier_for_software_db, url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+        identifier_for_paper_db, title_for_db, keywords_for_db
     ]
 
-    (url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
-     identifier_for_db, title_for_db, keywords_for_db) = loop_for_compiling_sql_database_columns(
+    (identifier_for_software_db, url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+     identifier_for_paper_db, title_for_db, keywords_for_db) = loop_for_compiling_sql_database_columns(
         dataframe, api_base, headers, empty_lists_for_db
     )
 
-    # Insert the data in the database
-    data_for_db = list(zip(url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
-                           identifier_for_db, title_for_db, keywords_for_db))
-    db_cursor.executemany(f'''
-    INSERT INTO {table_name} (url, repo_name, repo_description, stars, language, paper_identifier, paper_title, paper_keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    # Insert the data in the software database
+    data_for_db = list(zip(url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db, identifier_for_software_db))
+    db_software_cursor.executemany(f'''
+    INSERT INTO software (url, repo_name, repo_description, stars, language, paper_identifier) VALUES (?, ?, ?, ?, ?, ?)
     ''', data_for_db)
+    db_software_connection.commit()
+    db_software_cursor.execute(f'SELECT * FROM software')
 
-    db_connection.commit()
-
-    db_cursor.execute(f'SELECT * FROM {table_name}')
-
-    rows = db_cursor.fetchall()
+    rows = db_software_cursor.fetchall()
     print("Checking the rows in the database:")
     for row in rows:
         print(row)
+    print(len(rows))
 
-    db_connection.close()
+    db_software_connection.close()
 
+    # Insert the data in the paper_info database
+    data_for_db = list(zip(identifier_for_paper_db, title_for_db, keywords_for_db))
+    db_papers_cursor.executemany(f'''
+    INSERT INTO paper_info (paper_identifier, paper_title, paper_keywords) VALUES (?, ?, ?)
+    ''', data_for_db)
+    db_papers_connection.commit()
+    db_papers_cursor.execute(f'SELECT * FROM paper_info')
+
+    rows = db_papers_cursor.fetchall()
+    print("Checking the rows in the database:")
+    for row in rows:
+        print(row)
+    print(len(rows))
+
+    db_papers_connection.close()
 
 if __name__ == '__main__':
     main()

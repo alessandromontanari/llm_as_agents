@@ -1,10 +1,12 @@
 import os
 import sqlite3
 
+# TODO: add logging file writing
 
-def database_creation(path_dir, database_name):
+def database_creation(path_dir: str, database_name: str, table_name: str):
 
-    assert database_name[-2:] == ".db"
+    assert " " not in table_name, "There can't be white spaces in the SQL table name..."
+    assert database_name[-3:] == ".db", "Wrong database name"
 
     if not os.path.exists(path_dir):
         os.makedirs(path_dir)
@@ -17,29 +19,42 @@ def database_creation(path_dir, database_name):
     # Create a cursor object
     cursor = conn.cursor()
 
-    # TODO: fixed name for the table. Must be changed and choosable.
     # Drop the table if it exists
-    cursor.execute('DROP TABLE IF EXISTS software')
+    cursor.execute('DROP TABLE IF EXISTS ' + table_name)
 
     # Create the table
-    cursor.execute('''
-CREATE TABLE software (
+    if table_name == "paper_info":
+        cursor.execute(f'''
+CREATE TABLE {table_name} (
+    id INTEGER PRIMARY KEY,
+    paper_identifier INTEGER NOT NULL, 
+    paper_title TEXT NOT NULL, 
+    paper_keywords TEXT NOT NULL
+)
+''')
+    elif table_name == "software":
+        cursor.execute(f'''
+CREATE TABLE {table_name} (
     id INTEGER PRIMARY KEY,
     url TEST NOT NULL,
     repo_name TEXT NOT NULL,
     repo_description TEXT NOT NULL,
     stars INTEGER NOT NULL,
-    language TEXT NOT NULL
+    language TEXT NOT NULL,
+    paper_identifier INTEGER NOT NULL 
 )
 ''')
+    else:
+        raise NameError("Only paper_info and software are currently supported as table names.")
 
     # BEWARE: YOU NEED TO CLOSE THE DATABASE CONNECTION ONCE YOU ARE DONE!
     return conn, cursor
 
 
-def database_access(path_dir, database_name):
+def database_access(path_dir: str, database_name: str, table_name: str = "software"):
 
-    assert database_name[-2:] == ".db"
+    assert " " not in table_name, "There can't be white spaces in the SQL table name..."
+    assert database_name[-3:] == ".db", "Wrong database name"
 
     database_path = os.path.join(path_dir, database_name)
 
@@ -47,7 +62,6 @@ def database_access(path_dir, database_name):
 
     cursor = conn.cursor()
 
-    # TODO: fixed name for the table. Must be changed and choosable.
-    cursor.execute('SELECT * FROM software')
+    cursor.execute('SELECT * FROM ' + table_name)
 
     return conn, cursor
