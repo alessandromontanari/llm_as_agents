@@ -165,6 +165,7 @@ cython_debug/
 data/
 tmp/
 models/
+logs/
 
 # private code
 run/extract_from_pdfs

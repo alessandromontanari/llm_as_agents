@@ -57,20 +57,20 @@ def setup_initialization():
     documents_keywords = splitter.create_documents(df["keywords"], metadatas=metadata_doc)
 
     texts_title = [document.page_content for document in documents_titles]
-    # texts_keywords = [document.page_content for document in documents_keywords]
+    texts_keywords = [document.page_content for document in documents_keywords]
 
     vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(texts_title)
-
     query = "gammapy"
-    similar_documents_titles, similar_documents_keywords = cosine_similarity_search(
-        documents=documents_titles, documents_complement=documents_keywords,
-        query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix
+
+    tfidf_matrix = vectorizer.fit_transform(texts_title)
+    similar_documents_titles = cosine_similarity_search(
+        documents=documents_titles, query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix
     )
 
-    print("Preliminary selection")
-    for ii, doc in enumerate(similar_documents_titles):
-        print(doc.page_content, similar_documents_keywords[ii].page_content)
+    tfidf_matrix = vectorizer.fit_transform(texts_keywords)
+    similar_documents_keywords = cosine_similarity_search(
+        documents=documents_keywords, query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix
+    )
 
     vector_store_titles = Chroma.from_documents(
         documents=similar_documents_titles,

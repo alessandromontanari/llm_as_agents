@@ -44,7 +44,7 @@ def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_
 
     # TODO: change or remove the length limit for the dataframe. Or make it choosable.
 
-    for ii, row in tqdm(dataframe[0:500].iterrows(), total=len(dataframe[0:500])):
+    for ii, row in tqdm(dataframe[0:5000].iterrows(), total=len(dataframe[0:5000])):
 
         logging.info(f"Processing {ii+1} over {len(dataframe)} urls entries")
 
@@ -148,10 +148,10 @@ def main():
     db_software_cursor.execute(f'SELECT * FROM software')
 
     rows = db_software_cursor.fetchall()
-    print("Checking the rows in the database:")
+    print("Checking the rows in the software database:")
     for row in rows:
         print(row)
-    print(len(rows))
+    print("-" * 40)
 
     db_software_connection.close()
 
@@ -164,10 +164,10 @@ def main():
     db_papers_cursor.execute(f'SELECT * FROM paper_info')
 
     rows = db_papers_cursor.fetchall()
-    print("Checking the rows in the database:")
+    print("Checking the rows in the paper_info database:")
     for row in rows:
         print(row)
-    print(len(rows))
+    print("-" * 40)
 
     db_papers_connection.close()
 
