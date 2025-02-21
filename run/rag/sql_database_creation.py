@@ -5,6 +5,7 @@ This script is executable with python -m run.rag.sql_database_creation
 """
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 os.getenv("MISTRAL_API_KEY")
@@ -36,35 +37,21 @@ logging.basicConfig(
     filemode='w'
 )
 
+def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_lists_for_db):
 
-def main():
+    (url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+     identifier_for_db, title_for_db, keywords_for_db) = empty_lists_for_db
 
-    db_connection, db_cursor = database_creation(path_dir='./data/database_sql/test/', database_name="example.db")
+    # TODO: change or remove the length limit for the dataframe. Or make it choosable.
 
-    dataframe = pd.read_csv(
-        "./data/dataset/dataset_cross_checked_code_mentions_astroph1_hess0_skiprows0_maxrows60569.csv",
-        header=0,
-    )
+    for ii, row in tqdm(dataframe[0:5000].iterrows(), total=len(dataframe[0:5000])):
 
-    # GitHub API base URL
-    api_base = "https://api.github.com/repos"
+        logging.info(f"Processing {ii+1} over {len(dataframe)} urls entries")
 
-    headers = {"Authorization": f"token {github_token}"}
+        if "git" in row["urls"]:
 
-    url_for_db = []
-    repo_name_for_db = []
-    repo_description_for_db = []
-    stars_for_db = []
-    language_for_db = []
-
-    # Fetch repository details
-    for ii, url in tqdm(enumerate(dataframe["urls"]), total=len(dataframe["urls"])):
-
-        logging.info(f"Processing {ii+1} over {len(dataframe["urls"])} urls entries")
-
-        if "git" in url:
-
-            strip_individual_urls = url[2:-1].split(" ")
+            # Because in each row of dataframe["urls"], there may be more than one url, so we are checking once at a time
+            strip_individual_urls = row["urls"][2:-1].split(" ")
 
             for individual in strip_individual_urls:
 
@@ -78,27 +65,85 @@ def main():
                         # API request to fetch repository details
                         response = requests.get(f"{api_base}/{owner}/{repo}", headers=headers)
                         if response.status_code == 200:
+                            # from GitHub API
                             data = response.json()
                             url_for_db.append(individual)
                             repo_name_for_db.append(data['name'])
-                            repo_description_for_db.append(data['description'])
+                            repo_description_for_db.append(data['description'] if data['description'] is not None else "Not specified")
                             stars_for_db.append(data['stargazers_count'])
-                            language_for_db.append(
-                                data['language'] if data['language'] is not None else "Not specified")
+                            language_for_db.append(data['language'] if data['language'] is not None else "Not specified")
+
+                            identifier_for_db.append(row["identifier"])
+                            title_for_db.append(row["title"])
+                            keywords_for_db.append(row["keywords"])
                         else:
+                            # from GitHub API
+                            url_for_db.append(individual)
+                            repo_name_for_db.append("Failed request")
+                            repo_description_for_db.append("Failed request")
+                            stars_for_db.append("Failed request")
+                            language_for_db.append("Failed request")
+
+                            identifier_for_db.append(row["identifier"])
+                            title_for_db.append(row["title"])
+                            keywords_for_db.append(row["keywords"])
+
                             logging.info(f"Failed to fetch details for {individual}")
                     except Exception as e:
                         logging.info(f"Skipping because of error {e}")
 
+    for ii, kw in enumerate(keywords_for_db):
+        keywords_for_db[ii] = ",".join(kw[1:-1].split(", "))
+
+    return url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db, identifier_for_db, title_for_db, keywords_for_db
+
+
+
+def main():
+
+    table_name = "software"
+
+    db_connection, db_cursor = database_creation(path_dir='./data/database_sql/test/', database_name="example.db", table_name=table_name)
+
+    dataframe = pd.read_csv(
+        "./data/dataset/dataset_cross_checked_code_mentions_astroph1_hess0_skiprows0_maxrows60569.csv",
+        header=0,
+    )
+
+    # GitHub API base URL
+    api_base = "https://api.github.com/repos"
+
+    headers = {"Authorization": f"token {github_token}"}
+
+    identifier_for_db = []
+    title_for_db = []
+    keywords_for_db = []
+    url_for_db = []
+    repo_name_for_db = []
+    repo_description_for_db = []
+    stars_for_db = []
+    language_for_db = []
+
+    empty_lists_for_db = [
+        url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+        identifier_for_db, title_for_db, keywords_for_db
+    ]
+
+    (url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+     identifier_for_db, title_for_db, keywords_for_db) = loop_for_compiling_sql_database_columns(
+        dataframe, api_base, headers, empty_lists_for_db
+    )
+
     # Insert the data in the database
-    data_for_db = list(zip(url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db))
-    db_cursor.executemany('''
-    INSERT INTO software (url, repo_name, repo_description, stars, language) VALUES (?, ?, ?, ?, ?)
+    data_for_db = list(zip(url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
+                           identifier_for_db, title_for_db, keywords_for_db))
+    db_cursor.executemany(f'''
+    INSERT INTO {table_name} (url, repo_name, repo_description, stars, language, paper_identifier, paper_title, paper_keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', data_for_db)
 
     db_connection.commit()
 
-    db_cursor.execute('SELECT * FROM software')
+    db_cursor.execute(f'SELECT * FROM {table_name}')
 
     rows = db_cursor.fetchall()
     print("Checking the rows in the database:")
