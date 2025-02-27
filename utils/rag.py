@@ -1,5 +1,11 @@
+import numpy as np
 from langchain_core.documents import Document
 from typing_extensions import List, TypedDict
+from sklearn.feature_extraction.text import TfidfVectorizer
+from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_mistralai import ChatMistralAI
+
+from utils.dataset import cosine_similarity_search
 
 
 class State(TypedDict):
@@ -61,8 +67,95 @@ def retrieve_sql_database(state: State, vector_store):
 
 
 def generate(state: State, prompt, llm):
-    # doc[0] because the documents in state are returned from a similarity_search_w_score, ergo a tuple of (doc, score)
+    # doc[0] because the documents in state are returned from a similarity_search_w_score,
+    # ergo a tuple of (doc, score)
     docs_content = "\n\n".join(doc[0].page_content for doc in state["context"])
     messages = prompt.invoke({"question": state["question"], "context": docs_content})
     response = llm.invoke(messages)
     return {"answer": response.content}
+
+def generate_synonyms(prompt, llm, query):
+    messages = prompt.invoke({"name": "Waggy", "context": query})
+    response = llm.invoke(messages)
+    return response.content
+
+def find_semantically_similar_text(query: str, llm: ChatMistralAI):
+
+    prompt = ChatPromptTemplate([
+        ("system", "<s> [INST] You are a helpful AI bot. Your name is {name}. Given the following sentence: {context}, "
+                   "identify and list synonyms or semantically similar sentences. "
+                   "Ensure the suggested sentences maintain the context and meaning of the original sentence. "
+                   "Please write maximum ten sentences in your answer separated by commas. [/INST] </s> \n[INST] Answer: [/INST]")
+    ])
+
+    synonyms = generate_synonyms(prompt=prompt, llm=llm, query=query)
+
+    return synonyms
+
+def similarity_search(documents, field_name: str, query: str | list):
+
+    # TODO: if the field is repo_name, one should split the query in different words and do the similarity search with the words,
+    #  because the repository names are never longer than one word.
+
+    documents_list = []
+    urls_list = []
+
+    for doc in documents:
+        documents_list.append(
+            Document(
+                id='', metadata={'document': doc.page_content.split('paper_identifier: ')[1].split('\n')[0]},
+                # provides the document id in the metadata
+                page_content=doc.page_content.split(f'{field_name}: ')[1].split('\n')[0]
+            )
+        )
+        if field_name in ["repo_name", "repo_description"]:
+            urls_list.append(doc.page_content.split('url: ')[1].split('\n')[0])
+
+    document_list_texts = [document.page_content for document in documents_list]
+
+    vectorizer = TfidfVectorizer()
+
+    tfidf_matrix = vectorizer.fit_transform(document_list_texts)
+    if isinstance(query, str):
+        if urls_list:
+            similar_documents_list, cosine_sim_score, urls_of_similar_documents = cosine_similarity_search(
+                documents=documents_list, query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix, urls=urls_list
+            )
+        else:
+            similar_documents_list, cosine_sim_score = cosine_similarity_search(
+                documents=documents_list, query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix, urls=urls_list
+            )
+    elif isinstance(query, list):
+        doc_lists_to_filter = []
+        score_lists_to_filter = []
+        url_lists_to_filter = []
+        for qq in query:
+            assert isinstance(qq, str), "query can only be a string."
+            if urls_list:
+                docs, scores, urls = cosine_similarity_search(
+                    documents=documents_list, query=qq, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix, urls=urls_list
+                )
+                url_lists_to_filter.extend(urls)
+            else:
+                docs, scores = cosine_similarity_search(
+                    documents=documents_list, query=qq, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix, urls=urls_list
+                )
+            doc_lists_to_filter.extend(docs)
+            score_lists_to_filter.extend(scores)
+        # getting the top ten best scoring documents
+        contents, indices = np.unique([doc.page_content for doc in doc_lists_to_filter], return_index=True)  # removing repetitions
+        score_lists = [score_lists_to_filter[ii] for ii in indices]  # indices of the unique documents
+        top_ten = sorted(enumerate(score_lists), key=lambda x: x[1], reverse=True)[:10]  # keeping only the top ten scores
+        top_ten_indices = [index for index, _ in top_ten]
+        cosine_sim_score = [score for _, score in top_ten]  # cosine sim search scores for the top ten
+        similar_documents_list = [doc_lists_to_filter[ii] for ii in top_ten_indices]  # documents for the top ten
+        if urls_list:
+            urls_of_similar_documents = [url_lists_to_filter[ii] for ii in top_ten_indices]
+    else:
+        raise TypeError("query can be only a string or a list of strings.")
+
+    if urls_list:
+        return similar_documents_list, cosine_sim_score, urls_of_similar_documents
+
+    else:
+        return similar_documents_list, cosine_sim_score
