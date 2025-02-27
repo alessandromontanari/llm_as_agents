@@ -4,6 +4,7 @@
 This script is executable with python -m run.rag.simple_rag_sql_db
 """
 import os
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -12,90 +13,145 @@ os.getenv("LANGSMITH_TRACING")
 os.getenv("LANGSMITH_API_KEY")
 os.getenv("HF_TOKEN")
 
-import numpy as np
 from langchain_community.document_loaders import SQLDatabaseLoader
 from langchain_community.utilities.sql_database import SQLDatabase
-from langchain import hub
 from sqlalchemy import create_engine
-from langchain_core.documents import Document
-from langchain_mistralai import MistralAIEmbeddings, ChatMistralAI
-from langgraph.graph import START, StateGraph
-from langchain_core.vectorstores import InMemoryVectorStore
-from functools import partial
-from utils.rag import retrieve_sql_database, generate, State
+from langchain_mistralai import ChatMistralAI
+from utils.rag import similarity_search, find_semantically_similar_text
+
 import warnings
+import logging
+import re
+
 warnings.filterwarnings("ignore")
 
-def setup_initialization():
+log_file_path = "./logs/rag/"
+
+if not os.path.exists(log_file_path):
+    os.makedirs(log_file_path)
+
+full_path = __file__
+
+script_name = os.path.basename(full_path)[:-3]  # remove .py from the end
+
+logging.basicConfig(
+    filename=log_file_path+script_name+".log",
+    format="%(asctime)s - %(levelname)s - %(module)s - %(funcName)s: %(message)s",
+    level=logging.INFO,
+    filemode='w'
+)
+
+
+def search_from_query(query):
 
     llm = ChatMistralAI(model="ministral-3b-latest")
-    embeddings = MistralAIEmbeddings(
-        model="mistral-embed",
-        wait_time=30,  # Should be used for rate limit retries
-        max_retries=3,
-        timeout=300
-    )
-
-    vector_store = InMemoryVectorStore(embeddings)
+    # TODO: am I sure I don't need to use embeddings? Would this improve at all the current version of the code?
+    # embeddings = MistralAIEmbeddings(
+    #     model="mistral-embed",
+    #     wait_time=30,  # Should be used for rate limit retries
+    #     max_retries=3,
+    #     timeout=300
+    # )
 
     path_dir = './data/database_sql/test/'
-    db_name = 'example.db'
+    db_software_name, db_paper_info_name = 'software.db', 'paper_info.db'
 
-    engine = create_engine(f"sqlite:///{path_dir + db_name}")
+    engine_software_db = create_engine(f"sqlite:///{path_dir + db_software_name}")
 
-    db = SQLDatabase(engine)
-    loader = SQLDatabaseLoader(query='SELECT * FROM software', db=db)
-    documents = loader.load()
+    db = SQLDatabase(engine_software_db)
+    loader_software_db = SQLDatabaseLoader(query='SELECT * FROM software', db=db)
+    documents_software_db = loader_software_db.load()
 
-    documents_for_rag = []
+    engine_paper_info_db = create_engine(f"sqlite:///{path_dir + db_paper_info_name}")
 
-    for doc in documents:
-        documents_for_rag.append(
-            Document(
-                id='', metadata={'document': doc.page_content.split('\n')[0][4:]},
-                page_content=doc.page_content.split('repo_description: ')[1].split('\n')[0]
-            )
-        )
+    db = SQLDatabase(engine_paper_info_db)
+    loader_paper_info_db = SQLDatabaseLoader(query='SELECT * FROM paper_info', db=db)
+    documents_paper_info_db = loader_paper_info_db.load()
 
-    _ = vector_store.add_documents(documents=documents_for_rag)
+    all_urls = {}
+    for doc in documents_software_db:
+        all_urls[int(doc.page_content.split('paper_identifier: ')[1])] = doc.page_content.split('url: ')[1].split('\n')[0]
 
-    return llm, embeddings, vector_store
+    synonyms = find_semantically_similar_text(query, llm)
+
+    queries = re.split(",|, |\n|,\n", synonyms)
+
+    cleaned_queries = []
+    for ii, string in enumerate(queries):
+        cleaned_string = re.sub(r'[^a-zA-Z\s]', ' ', string)
+        if ii == 0:
+            cleaned_queries.append(query)
+        cleaned_queries.append(cleaned_string.strip())
+
+    similar_repo_name_documents, repo_names_sim_score, urls_from_repo_names = similarity_search(
+        documents=documents_software_db, field_name="repo_name", query=cleaned_queries
+    )
+    similar_repo_description_documents, repo_descr_sim_score, urls_from_repo_descr = similarity_search(
+        documents=documents_software_db, field_name="repo_description", query=cleaned_queries
+    )
+    similar_title_documents, titles_sim_score = similarity_search(
+        documents=documents_paper_info_db, field_name="paper_title", query=cleaned_queries
+    )
+    similar_keyword_documents, keywords_sim_score = similarity_search(
+        documents=documents_paper_info_db, field_name="paper_keywords", query=cleaned_queries
+    )
+
+    ids_titles = set([int(doc.metadata["document"]) for doc in similar_title_documents])
+    ids_kws = set([int(doc.metadata["document"]) for doc in similar_keyword_documents])
+    ids_repo_descr = set([doc.metadata["document"] for doc in similar_repo_description_documents])
+
+    intersection_titles_kws = list(ids_titles & ids_kws)
+    intersection_titles_repo_descr = list(ids_titles & ids_repo_descr)
+
+    print("-" * 40)
+    print("From the repository descriptions, these are the first three, by score:")
+    for ii, doc in enumerate(similar_repo_description_documents[:3]):
+        print(f"Repo description: {doc.page_content},"
+              f"\n  score: {round(titles_sim_score[ii], 3):3}/1,\n  url: {urls_from_repo_descr[ii]}")
+    if intersection_titles_kws:
+        print("-" * 40)
+        print("From results from both the paper titles and keywords:")
+        for index in intersection_titles_kws:
+            try:
+                print(all_urls[index])
+            except Exception as e:
+                # TODO: check here, because there may be a problem in compiling the link database
+                print("  No url was included with the paper title") # TODO: add the paper title
+    if intersection_titles_repo_descr:
+        print("-" * 40)
+        print("From results from both the paper titles and repository descriptions:")
+        for index in intersection_titles_repo_descr:
+            try:
+                print(all_urls[index])
+            except Exception as e:
+                # TODO: check here, because there may be a problem in compiling the link database
+                print("  No url was included with the paper title")
+
+    # print("Most similar titles:")
+    # for ii, doc in enumerate(similar_title_documents):
+    #     print(f"ID: {doc.metadata["document"]}, {doc.page_content}, \n  score: {round(titles_sim_score[ii], 3):3}/1")
+    # print("-" * 40)
+    # print("Most similar keywords:")
+    # for ii, doc in enumerate(similar_keyword_documents):
+    #     print(f"ID: {doc.metadata["document"]}, {doc.page_content}, \n  score: {round(keywords_sim_score[ii], 3):3}/1")
+    # print("-" * 40)
+    # print("Most similar repository names:")
+    # for ii, doc in enumerate(similar_repo_name_documents):
+    #     print(f"ID: {doc.metadata["document"]}, {doc.page_content}, \n  score: {round(repo_names_sim_score[ii], 3):3}/1")
+    # print("-" * 40)
+    # print("Most similar repository descriptions:")
+    # for ii, doc in enumerate(similar_repo_description_documents):
+    #     print(f"ID: {doc.metadata["document"]}, {doc.page_content}, \n  score: {round(repo_descr_sim_score[ii], 3):3}/1")
+    # print("-" * 40)
 
 
 def main():
 
-    llm, embeddings, vector_store = setup_initialization()
+    query = "software for data analysis for very-high-energy gamma-ray astronomy"
 
-    prompt = hub.pull("rlm/rag-prompt")
+    print(f"You've asked for: \n{query}")
 
-    graph_builder = StateGraph(State)
-    partial_retrieve = partial(retrieve_sql_database, vector_store=vector_store)
-    partial_generate = partial(generate, prompt=prompt, llm=llm)
-    graph_builder.add_sequence([
-        ("retrieve", partial_retrieve),
-        ("generate", partial_generate)
-    ])
-
-    graph_builder.add_edge(START, "retrieve")
-    graph = graph_builder.compile()
-
-    question = "Can you find anything among the provided repository descriptions python code for astrophysics?"
-
-    result = graph.invoke({
-        "question": question}
-    )
-
-    print("You've asked: \n" + question)
-
-    print("\nHere are the better matching descriptions:")
-    # max_len = np.max([len(context[0].page_content) for context in result["context"]])
-
-    for context in result["context"]:
-
-        print(f"{context[0].page_content}\n score: {round(context[1], 4)}")
-
-    print(f'\nAnswer to your question: {result["answer"]}')
-
+    search_from_query(query)
 
 
 if __name__ == '__main__':
