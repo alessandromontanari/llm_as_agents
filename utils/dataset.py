@@ -7,6 +7,7 @@ import re
 import yake
 
 from sklearn.metrics.pairwise import cosine_similarity
+
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from datasets import Dataset, load_dataset
@@ -456,13 +457,16 @@ def load_pyarrow_dataset(path_to_json_dataset: str, split_train_test: float = No
         pyarrow_dataset = load_dataset('json', data_files=path_to_json_dataset)
         return pyarrow_dataset
 
-def cosine_similarity_search(documents, query, vectorizer, tfidf_matrix, top_n=10):
+def cosine_similarity_search(documents, query, vectorizer, tfidf_matrix, urls=[], top_n=10):
 
     query_vector = vectorizer.transform([query])
     cosine_similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
     most_similar_indices = np.argsort(cosine_similarities)[-top_n:][::-1]
-
-    return [documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1]
+    if urls:
+        return ([documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1],
+                [urls[ii] for ii in most_similar_indices])
+    else:
+        return [documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1]
 
 
 class TrainingDatasetReader(torch.utils.data.Dataset):
