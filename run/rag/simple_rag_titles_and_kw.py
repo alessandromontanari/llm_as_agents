@@ -63,12 +63,12 @@ def setup_initialization():
     query = "gammapy"
 
     tfidf_matrix = vectorizer.fit_transform(texts_title)
-    similar_documents_titles = cosine_similarity_search(
+    similar_documents_titles, _ = cosine_similarity_search(
         documents=documents_titles, query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix
     )
 
     tfidf_matrix = vectorizer.fit_transform(texts_keywords)
-    similar_documents_keywords = cosine_similarity_search(
+    similar_documents_keywords, _ = cosine_similarity_search(
         documents=documents_keywords, query=query, vectorizer=vectorizer, tfidf_matrix=tfidf_matrix
     )
 
@@ -98,7 +98,7 @@ def main():
 
     print("Setup initialized.")
 
-    prompt = hub.pull("rlm/rag-prompt")
+    prompt = hub.pull("rlm/rag-prompt-mistral")
 
     graph_builder = StateGraph(State)
     partial_retrieve = partial(retrieve_csv_database, vector_store_titles=vector_store_titles, vector_store_keywords=vector_store_keywords)
@@ -116,8 +116,8 @@ def main():
     question = "Can you find anything among the provided titles about gammapy?"
 
     result = graph.invoke({
-        "question": question}
-    )
+        "question": question
+    })
 
     print("You've asked: \n" + question)
 
