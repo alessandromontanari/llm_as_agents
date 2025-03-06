@@ -21,6 +21,7 @@ from utils.rag import similarity_search, find_semantically_similar_text
 
 import warnings
 import logging
+import yake
 import re
 
 warnings.filterwarnings("ignore")
@@ -72,7 +73,15 @@ def search_from_query(query):
     for doc in documents_software_db:
         all_urls[int(doc.page_content.split('paper_identifier: ')[1])] = doc.page_content.split('url: ')[1].split('\n')[0]
 
-    synonyms = find_semantically_similar_text(query, llm)
+    sim_search = bool(
+        input("Do you wish to also scan the database for text semantically similar to the query? (Press any key and ENTER for True or just ENTER for False.) ")
+    )
+    if sim_search:
+        print("Generating semantically similar text.")
+        synonyms = find_semantically_similar_text(query, llm)
+    else:
+        print("Using only the query.")
+        synonyms = query
 
     queries = re.split(",|, |\n|,\n", synonyms)
 
@@ -96,6 +105,10 @@ def search_from_query(query):
         documents=documents_paper_info_db, field_name="paper_keywords", query=cleaned_queries
     )
 
+    titles = {}
+    for doc in similar_title_documents:
+        titles[int(doc.metadata["document"])] = doc.page_content
+
     ids_titles = set([int(doc.metadata["document"]) for doc in similar_title_documents])
     ids_kws = set([int(doc.metadata["document"]) for doc in similar_keyword_documents])
     ids_repo_descr = set([doc.metadata["document"] for doc in similar_repo_description_documents])
@@ -103,11 +116,15 @@ def search_from_query(query):
     intersection_titles_kws = list(ids_titles & ids_kws)
     intersection_titles_repo_descr = list(ids_titles & ids_repo_descr)
 
+    # TODO: may be useful to create a hierarchy for the responses depending on the stars one repository has
+    # TODO: add a way to specify the language
+
     print("-" * 40)
-    print("From the repository descriptions, these are the first three, by score:")
-    for ii, doc in enumerate(similar_repo_description_documents[:3]):
+    print("From the repository descriptions, these are the first five, by score:")
+    for ii, doc in enumerate(similar_repo_description_documents[:10]):
         print(f"Repo description: {doc.page_content},"
               f"\n  score: {round(titles_sim_score[ii], 3):3}/1,\n  url: {urls_from_repo_descr[ii]}")
+        print("-" * 15)
     if intersection_titles_kws:
         print("-" * 40)
         print("From results from both the paper titles and keywords:")
@@ -115,8 +132,7 @@ def search_from_query(query):
             try:
                 print(all_urls[index])
             except Exception as e:
-                # TODO: check here, because there may be a problem in compiling the link database
-                print("  No url was included with the paper title") # TODO: add the paper title
+                print(f"  No url was included with the paper title '{titles[index]}'")
     if intersection_titles_repo_descr:
         print("-" * 40)
         print("From results from both the paper titles and repository descriptions:")
@@ -124,7 +140,6 @@ def search_from_query(query):
             try:
                 print(all_urls[index])
             except Exception as e:
-                # TODO: check here, because there may be a problem in compiling the link database
                 print("  No url was included with the paper title")
 
     # print("Most similar titles:")
@@ -147,7 +162,7 @@ def search_from_query(query):
 
 def main():
 
-    query = "software for data analysis for very-high-energy gamma-ray astronomy"
+    query = "gamma-ray astronomy."
 
     print(f"You've asked for: \n{query}")
 
