@@ -457,7 +457,7 @@ def load_pyarrow_dataset(path_to_json_dataset: str, split_train_test: float = No
         pyarrow_dataset = load_dataset('json', data_files=path_to_json_dataset)
         return pyarrow_dataset
 
-def cosine_similarity_search(documents, query, vectorizer, tfidf_matrix, urls=[], top_n=10):
+def cosine_similarity_search(documents, query, vectorizer, tfidf_matrix, urls=[], top_n=20):
 
     query_vector = vectorizer.transform([query])
     cosine_similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
