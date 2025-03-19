@@ -36,7 +36,7 @@ CREATE TABLE {table_name} (
         cursor.execute(f'''
 CREATE TABLE {table_name} (
     id INTEGER PRIMARY KEY,
-    url TEST NOT NULL,
+    url TEXT NOT NULL,
     repo_name TEXT NOT NULL,
     repo_description TEXT NOT NULL,
     stars INTEGER NOT NULL,
