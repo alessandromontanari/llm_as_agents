@@ -11,21 +11,22 @@ def process_meeting_minutes_ops_calls(file_path):
     hess_url_pattern = r'/hess\S+'
     hess_urls = re.findall(hess_url_pattern, cleaned_minutes)
     sections = re.split(r'## |\n##', cleaned_minutes)
-    structured_minutes = []
 
     for section in sections:
         if section.strip():
             title, *content = section.strip().split('\n', 1)
-            structured_data[title.strip()] = content[0].strip() if content else ''
-            if title == "Minutes":
+
+            if title != "Minutes":
+                structured_data[title.strip()] = content[0].strip() if content else ''
+
+            else:
                 row_pattern = re.compile(r'\| (.*?) \| (.*?) \| (.*?) \|')  # for each entry in the Minutes table
                 rows = row_pattern.findall(meeting_minutes)
+
                 for agenda_item, presenter, minutes in rows[2:]:
                     agenda_item_cleaned = re.sub(r', \[slides\]\(.*?\)', '', agenda_item)
                     minutes_cleaned = re.sub(r'<span[^>]*>|</span>|<br>', '', minutes)
-                    structured_minutes.append({
-                        'Title': agenda_item_cleaned.strip(),
-                        'Content': f"{presenter.strip()}, {minutes_cleaned.strip()}"
-                    })
 
-    return structured_data, hess_urls, structured_minutes
+                    structured_data[agenda_item_cleaned.strip()] = f"{presenter.strip()}, {minutes_cleaned.strip()}" if minutes_cleaned else ''
+
+    return structured_data, hess_urls
