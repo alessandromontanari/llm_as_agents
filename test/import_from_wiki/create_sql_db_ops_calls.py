@@ -7,7 +7,7 @@ from utils.database import database_creation
 class TestCreateSQLDBOpsCalls(unittest.TestCase):
     def test_create_sql_db_ops_calls(self):
 
-        db_connection, db_cursor = database_creation(path_dir="./data/database_sq/hess/", database_name="hess.db", table_name="operations_call")
+        db_connection, db_cursor = database_creation(path_dir="./data/database_sql/hess/", database_name="hess.db", table_name="operations_call")
 
         list_paths = glob("./data/hess_pages/ops_calls/*")
 
