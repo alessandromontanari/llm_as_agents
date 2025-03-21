@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 
-This script is executable with python -m run.rag.sql_database_creation
+This script is executable with python -m run.rag.create_db.sql_database_creation
 """
 import os
 from dotenv import load_dotenv
@@ -37,6 +37,7 @@ logging.basicConfig(
     filemode='w'
 )
 
+# TODO: move the function to utils and create a test unit
 def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_lists_for_db):
 
     (identifier_for_software_db, url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
@@ -44,7 +45,7 @@ def loop_for_compiling_sql_database_columns(dataframe, api_base, headers, empty_
 
     # TODO: change or remove the length limit for the dataframe. Or make it choosable.
 
-    for ii, row in tqdm(dataframe[0:5000].iterrows(), total=len(dataframe[0:5000])):
+    for ii, row in tqdm(dataframe[0:15000].iterrows(), total=len(dataframe[0:15000])):
 
         logging.info(f"Processing {ii+1} over {len(dataframe)} urls entries")
 
@@ -136,7 +137,7 @@ def main():
 
     (identifier_for_software_db, url_for_db, repo_name_for_db, repo_description_for_db, stars_for_db, language_for_db,
      identifier_for_paper_db, title_for_db, keywords_for_db) = loop_for_compiling_sql_database_columns(
-        dataframe, api_base, headers, empty_lists_for_db
+        dataframe=dataframe, api_base=api_base, headers=headers, empty_lists_for_db=empty_lists_for_db
     )
 
     # Insert the data in the software database
