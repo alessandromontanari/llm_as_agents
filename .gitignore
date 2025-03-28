@@ -161,7 +161,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# directories with data or temporary cache
+# directories with data, or temporary cache, or private config
 data/
 tmp/
 models/
@@ -169,4 +169,5 @@ logs/
 
 # private code
 run/extract_from_pdfs
-
+utils/wikijs
+test/import_from_wiki/load_wiki_pages
