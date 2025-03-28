@@ -85,7 +85,7 @@ def find_semantically_similar_text(query: str, llm: ChatMistralAI):
         ("system", "<s> [INST] You are a helpful AI bot. Your name is {name}. Given the following sentence: {context}, "
                    "identify and list synonyms or semantically similar sentences. "
                    "Ensure the suggested sentences maintain the context and meaning of the original sentence. "
-                   "Please write maximum ten sentences in your answer separated by commas. [/INST] </s> \n[INST] Answer: [/INST]")
+                   "Please write maximum five sentences in your answer separated by commas. [/INST] </s> \n[INST] Answer: [/INST]")
     ])
 
     synonyms = generate_synonyms(prompt=prompt, llm=llm, query=query)
@@ -143,7 +143,9 @@ def similarity_search(documents, field_name: str, query: str | list):
             doc_lists_to_filter.extend(docs)
             score_lists_to_filter.extend(scores)
         # getting the top ten best scoring documents
-        contents, indices = np.unique([doc.page_content for doc in doc_lists_to_filter], return_index=True)  # removing repetitions
+        sorted_indexes_from_scores = np.argsort(score_lists_to_filter).tolist()
+        sorted_documents = [doc_lists_to_filter[ii] for ii in sorted_indexes_from_scores]
+        filtered_docs, indices = np.unique([doc.page_content for doc in sorted_documents], return_index=True)  # removing repetitions
         score_lists = [score_lists_to_filter[ii] for ii in indices]  # indices of the unique documents
         top_ten = sorted(enumerate(score_lists), key=lambda x: x[1], reverse=True)[:10]  # keeping only the top ten scores
         top_ten_indices = [index for index, _ in top_ten]
@@ -159,3 +161,50 @@ def similarity_search(documents, field_name: str, query: str | list):
 
     else:
         return similar_documents_list, cosine_sim_score
+
+
+def similarity_search_hess_pages(documents_texts: list, query: str | list):
+    """
+
+    :param query: the query to be searched for inside the database
+    :param documents_texts: documents texts from the SQL database, already filtered for the chosen section
+    :return:
+    """
+
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(documents_texts)
+
+    if isinstance(query, str):
+        docs_output, scores_output, indexes_output = cosine_similarity_search(
+            documents=documents_texts, query=query,
+            vectorizer=vectorizer, tfidf_matrix=tfidf_matrix, urls=[], top_n=5, return_indexes=True
+        )
+    elif isinstance(query, list):
+        doc_list_to_filter = []
+        score_list_to_filter = []
+        indexes_list_to_filter = []
+        for qq in query:
+            assert isinstance(qq, str), "query can only be a string."
+            docs, scores, indexes = cosine_similarity_search(
+                documents=documents_texts, query=qq,
+                vectorizer=vectorizer, tfidf_matrix=tfidf_matrix, urls=[], top_n=10, return_indexes=True
+            )
+            doc_list_to_filter.extend(docs)
+            score_list_to_filter.extend(scores)
+            indexes_list_to_filter.extend(indexes)
+
+        sorted_indexes_from_scores = np.argsort(score_list_to_filter).tolist()
+        sorted_documents = [doc_list_to_filter[ii] for ii in sorted_indexes_from_scores]
+        filtered_docs, indices = np.unique([document for document in sorted_documents], return_index=True)  # removing repetitions
+        score_lists = [score_list_to_filter[ii] for ii in indices]  # indices of the unique documents
+        top_ten = sorted(enumerate(score_lists), key=lambda x: x[1], reverse=True)[:10]  # keeping only the top ten scores
+        top_ten_indices = [index for index, _ in top_ten]
+        cosine_sim_score = [score for _, score in top_ten]  # cosine sim search scores for the ten five
+
+        scores_output = cosine_sim_score
+        docs_output = [doc_list_to_filter[ii] for ii in top_ten_indices]
+        indexes_output = [indexes_list_to_filter[ii] for ii in top_ten_indices]
+    else:
+        raise TypeError("query can be only a string or a list of strings.")
+
+    return docs_output, scores_output, indexes_output
