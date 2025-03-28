@@ -77,20 +77,16 @@ def search_from_query(query):
         input("Do you wish to also scan the database for text semantically similar to the query? (Press any key and ENTER for True or just ENTER for False.) ")
     )
     if sim_search:
-        print("Generating semantically similar text.")
+        print("--> Generating semantically similar text.")
         synonyms = find_semantically_similar_text(query, llm)
+        cleaned_queries = []
+        queries = re.split(",|, |\n|,\n", synonyms)
+        for ii, string in enumerate(queries):
+            cleaned_string = re.sub(r'[^a-zA-Z\s]', ' ', string)
+            cleaned_queries.append(cleaned_string.strip())
     else:
-        print("Using only the query.")
-        synonyms = query
-
-    queries = re.split(",|, |\n|,\n", synonyms)
-
-    cleaned_queries = []
-    for ii, string in enumerate(queries):
-        cleaned_string = re.sub(r'[^a-zA-Z\s]', ' ', string)
-        if ii == 0:
-            cleaned_queries.append(query)
-        cleaned_queries.append(cleaned_string.strip())
+        print("--> Using only the query.")
+        cleaned_queries = query
 
     similar_repo_name_documents, repo_names_sim_score, urls_from_repo_names = similarity_search(
         documents=documents_software_db, field_name="repo_name", query=cleaned_queries
@@ -116,11 +112,14 @@ def search_from_query(query):
     intersection_titles_kws = list(ids_titles & ids_kws)
     intersection_titles_repo_descr = list(ids_titles & ids_repo_descr)
 
+    print(similar_repo_description_documents)
+
     # TODO: may be useful to create a hierarchy for the responses depending on the stars one repository has
     # TODO: add a way to specify the language
 
     print("-" * 40)
     print("From the repository descriptions, these are the first five, by score:")
+    print("-" * 15)
     for ii, doc in enumerate(similar_repo_description_documents[:10]):
         print(f"Repo description: {doc.page_content},"
               f"\n  score: {round(titles_sim_score[ii], 3):3}/1,\n  url: {urls_from_repo_descr[ii]}")
@@ -162,7 +161,7 @@ def search_from_query(query):
 
 def main():
 
-    query = "gamma-ray astronomy."
+    query = "scalar field dynamics in cosmology"
 
     print(f"You've asked for: \n{query}")
 
