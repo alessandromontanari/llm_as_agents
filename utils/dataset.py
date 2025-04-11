@@ -307,8 +307,8 @@ class PaperAbstractsDatasetGeneration:
                     identifiers.append(int(identifier))
                     titles.append(source['title'])
                     categories.append(source['category'])
-                    # TODO: fixed the output_urls as list. This means one may need to change how the dataframe is used elsewhere.
-                    output_urls.append(df_urls[df_urls["identifier"] == identifier]["url"].values[0].split(' '))
+                    # .values and no split of the string in substrings because an entry in a dataframe row can't be a list...
+                    output_urls.append(df_urls[df_urls["identifier"] == identifier]["url"].values[0])
                     if match_kw and matches_code:
                         keywords.append(match_kw.group(1).strip())
                         mentioned_software.append(matches_code)
@@ -378,6 +378,7 @@ class PaperAbstractsDatasetGeneration:
         )
 
         pyarrow_dataset.to_json(name_save_file)
+        print(f"Saved: {name_save_file}")
 
     def save_dataframe_raw_texts_format_as_csv(self):
 
@@ -397,6 +398,7 @@ class PaperAbstractsDatasetGeneration:
         )
 
         self.dataframe_raw_texts_format.to_csv(name_save_file, index=True)
+        print(f"Saved: {name_save_file}")
 
     def save_dataframe_code_mentions_as_csv(self):
 
@@ -416,6 +418,7 @@ class PaperAbstractsDatasetGeneration:
         )
 
         self.dataframe_code_mentions.to_csv(name_save_file, index=True)
+        print(f"Saved: {name_save_file}")
 
     def save_dataframe_cross_checked_code_mentions_as_csv(self):
 
@@ -435,7 +438,7 @@ class PaperAbstractsDatasetGeneration:
         )
 
         self.dataframe_cross_checked_code_mentions.to_csv(name_save_file, index=True)
-
+        print(f"Saved: {name_save_file}")
 
 
 def load_pyarrow_dataset(path_to_json_dataset: str, split_train_test: float = None):
