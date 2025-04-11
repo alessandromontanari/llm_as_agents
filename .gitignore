@@ -166,6 +166,7 @@ data/
 tmp/
 models/
 logs/
+configs/config_wiki.yaml
 
 # private code
 run/extract_from_pdfs
