@@ -72,11 +72,16 @@ class SearchTheWeb:
 
         return results
 
+    def find_link_to_code(self):
+        # TODO: this function should find links to code if a code keyword is mentioned.
+        #  Like, file with .py, .C, .cpp, etc.
+        pass
+
+    # TODO: some function to output more than only the count?
+    #  For instance the name of the paper and the mention of the keyword.
+
     def search(self):
 
         keywords_count_in_urls = self.count_keywords_on_website()
 
         return keywords_count_in_urls
-
-    # TODO: some function to output more than only the count?
-    #  For instance the name of the paper and the mention of the keyword.
