@@ -307,7 +307,8 @@ class PaperAbstractsDatasetGeneration:
                     identifiers.append(int(identifier))
                     titles.append(source['title'])
                     categories.append(source['category'])
-                    output_urls.append(df_urls[df_urls["identifier"] == identifier]["url"].values)
+                    # TODO: fixed the output_urls as list. This means one may need to change how the dataframe is used elsewhere.
+                    output_urls.append(df_urls[df_urls["identifier"] == identifier]["url"].values[0].split(' '))
                     if match_kw and matches_code:
                         keywords.append(match_kw.group(1).strip())
                         mentioned_software.append(matches_code)
@@ -457,17 +458,22 @@ def load_pyarrow_dataset(path_to_json_dataset: str, split_train_test: float = No
         pyarrow_dataset = load_dataset('json', data_files=path_to_json_dataset)
         return pyarrow_dataset
 
-def cosine_similarity_search(documents, query, vectorizer, tfidf_matrix, urls=[], top_n=20):
+def cosine_similarity_search(documents, query, vectorizer, tfidf_matrix, urls=[], top_n=20, return_indexes=False):
 
     query_vector = vectorizer.transform([query])
     cosine_similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
     most_similar_indices = np.argsort(cosine_similarities)[-top_n:][::-1]
     if urls:
-        return ([documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1],
-                [urls[ii] for ii in most_similar_indices])
+        output = [[documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1],
+                  [urls[ii] for ii in most_similar_indices]]
+        if return_indexes:
+            output.append(most_similar_indices)
+        return output
     else:
-        return [documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1]
-
+        output = [[documents[ii] for ii in most_similar_indices], np.sort(cosine_similarities)[-top_n:][::-1]]
+        if return_indexes:
+            output.append(most_similar_indices)
+        return output
 
 class TrainingDatasetReader(torch.utils.data.Dataset):
     def __init__(
