@@ -171,4 +171,6 @@ configs/config_wiki.yaml
 # private code
 run/extract_from_pdfs
 utils/wikijs
+utils/database_physicstools.py
 test/import_from_wiki/load_wiki_pages
+test/polish_db_physicstools
