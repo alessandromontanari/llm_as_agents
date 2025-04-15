@@ -26,13 +26,17 @@ logging.basicConfig(
 class SearchTheWeb:
     def __init__(
             self,
-            path_to_dataframe: str,
-            keywords: list
+            path_to_data: str,
+            keywords: list,
+            from_dataframe_or_base_file: str = "dataframe",
     ):
 
-        self.path_to_dataframe = path_to_dataframe
+        # from_dataframe_or_base_file either "dataframe" or "base_file" at the moment,
+        self.from_dataframe_or_base_file = from_dataframe_or_base_file
 
-        self.dataframe = pd.read_csv(self.path_to_dataframe, header=0)
+        self.path_to_data = path_to_data
+
+        self.identifiers, self.urls = self.preprocess_urls()
 
         self.keywords = keywords
 
@@ -53,16 +57,32 @@ class SearchTheWeb:
         found_keywords = {keyword: content_lower.count(keyword) for keyword in keywords}
         return found_keywords
 
+    def preprocess_urls(self):
+        # TODO: function to preprocess the urls, because the data structure is different depending on whether the input is a dataframe or the base file
+        if self.from_dataframe_or_base_file == "dataframe":
+            dataframe = pd.read_csv(self.path_to_data, header=0)
+            identifiers = dataframe['identifier']
+            urls = dataframe['urls']
+        elif self.from_dataframe_or_base_file == "base_file":
+            dataframe = pd.read_csv(self.path_to_data, names=["identifier", "urls"], sep="\t")
+            identifiers = dataframe['identifier']
+            urls = dataframe['urls']
+        else:
+            raise ValueError("from_dataframe_or_base_file can either be 'dataframe' or 'base_file'")
+
+        return identifiers, urls
+
+
     def count_keywords_on_website(self):
 
         results = {}
 
-        for ii, row in tqdm(self.dataframe.iterrows(), total=len(self.dataframe)):
-            urls = row["urls"].split(' ') if type(row["urls"]) == str else []
-            for url in urls:
+        for ii, urls_list in tqdm(enumerate(self.urls), total=len(self.urls)):
+            urls_list = urls_list.split(' ') if type(urls_list) == str else []
+            for url in urls_list:
                 if "git" not in url:
                     logging.info(f"Fetching {url}...")
-                    content = self.fetch_page_content(url)
+                    content: str | None = self.fetch_page_content(url)
                     if content:
                         logging.info(f"\tcounting keywords...")
                         soup = BeautifulSoup(content, 'html.parser')
@@ -82,6 +102,8 @@ class SearchTheWeb:
 
     def search(self):
 
+        # if self.from_dataframe_or_base_file == "dataframe":
+        # elif
         keywords_count_in_urls = self.count_keywords_on_website()
 
         return keywords_count_in_urls

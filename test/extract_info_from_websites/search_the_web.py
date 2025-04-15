@@ -15,11 +15,11 @@ class TestSearchTheWeb(unittest.TestCase):
 
         keywords_code = ["code", "pipeline", "software", "development", "programming"]
 
-        search_the_web_for_code = SearchTheWeb(path_to_dataframe=path_to_dataframe, keywords=keywords_code)
-        dataframe = search_the_web_for_code.dataframe
-        for ii, row in tqdm(dataframe[0:100].iterrows(), total=len(dataframe[0:100])):
-            urls = row["urls"].split(' ') if type(row["urls"]) == str else []
-            for url in urls:
+        search_the_web_for_code = SearchTheWeb(path_to_data=path_to_dataframe, keywords=keywords_code, from_dataframe_or_base_file="dataframe")
+        urls = search_the_web_for_code.urls
+        for ii, urls_list in tqdm(enumerate(urls[0:100]), total=len(urls[0:100])):
+            urls_list = urls_list.split(' ') if type(urls_list) == str else []
+            for url in urls_list:
                 if "git" not in url:
                     response: str | None = search_the_web_for_code.fetch_page_content(url)
                     self.assertTrue(type(response) == str or type(response) == NoneType)
