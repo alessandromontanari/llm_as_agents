@@ -4,7 +4,9 @@
 This script is executable with python -m run.dataset_creation.merge_url_databases
 """
 import pandas as pd
+import numpy as np
 from glob import glob
+
 
 def main() -> None:
 
@@ -13,6 +15,23 @@ def main() -> None:
 
     year_month_combinations = [path.split("clean_")[1].split(".txt")[0] for path in list_paths_urls]
     year_month_combinations.sort()
+    years = np.unique([year_month_combination[:2] for year_month_combination in year_month_combinations]).astype(int).tolist()
+    print("These are the available years: ")
+    for ii, year in enumerate(years):
+        print(ii, "20" + str(year) if year < 25 else "19" + str(year))
+    chosen_index = int(
+        input("Please choose for which year you want me to merge the datasets by typing the index and ENTER. "
+              "If you want me to merge all the years type -1 and ENTER. ")
+    )
+    if 0 < chosen_index < len(years):
+        chosen_year = str(years[chosen_index])
+        year_month_combinations = [year_month_combination for year_month_combination in year_month_combinations if chosen_year in year_month_combination]
+    elif chosen_index == -1:
+        year_month_combinations = year_month_combinations
+    else:
+        raise ValueError("Wrong input index.")
+
+    print(year_month_combinations)
 
     string_range = year_month_combinations[0] + "-" + year_month_combinations[-1]
 
