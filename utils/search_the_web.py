@@ -151,7 +151,8 @@ class SearchTheWeb:
 
         for ii, urls_list in tqdm(
                 enumerate(self.urls[0:self.max_urls_search] if self.max_urls_search is not None else self.urls),
-                total=len(self.urls[0:self.max_urls_search])  if self.max_urls_search is not None else len(self.urls)
+                total=len(self.urls[0:self.max_urls_search])  if self.max_urls_search is not None else len(self.urls),
+                desc="Counting kws and code exts..."
         ):
             urls_list = urls_list.split(' ') if type(urls_list) == str else []
             for url in urls_list:
@@ -174,10 +175,7 @@ class SearchTheWeb:
 
         results_git_in_urls = 0
 
-        for ii, urls_list in tqdm(
-                enumerate(self.urls[0:self.max_urls_search] if self.max_urls_search is not None else self.urls),
-                total=len(self.urls[0:self.max_urls_search])  if self.max_urls_search is not None else len(self.urls)
-        ):
+        for ii, urls_list in enumerate(self.urls[0:self.max_urls_search] if self.max_urls_search is not None else self.urls):
             urls_list = urls_list.split(' ') if type(urls_list) == str else []
             for url in urls_list:
                 if "git" in url:
@@ -196,9 +194,15 @@ class SearchTheWeb:
         return total_keywords_count_per_url
 
     def count_per_keyword(self, keywords_count):
-        total_count_per_kw = {}
-        # TODO: finish this
 
+        total_count_per_kw = {}
+        for kw in self.keywords:
+            total_count_per_kw[kw] = 0
+        for url, kw_counts in keywords_count.items():
+            for kw, count in kw_counts.items():
+                total_count_per_kw[kw] += count
+
+        return total_count_per_kw
 
     def extensions_count_per_matching_url(self, code_extensions_count):
 
@@ -213,28 +217,33 @@ class SearchTheWeb:
     def count_positive_urls(self, keywords_count):
 
         positive_urls_count = 0
+        list_positive_urls = []
         for url, kw_counts in keywords_count.items():
             non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
             if non_zero_counts >= 1:
                 positive_urls_count += 1
+                list_positive_urls.append(url)
 
-        return positive_urls_count
+        return positive_urls_count, list_positive_urls
 
     def count_true_positive_urls(self, keywords_count, code_extensions_count):
         # Assuming a true positive means that in the website there is either two mentions of keywords or a mention of a keyword and a code extension
 
         true_positive_urls_count = 0
+        list_true_positive_urls = []
         for url, kw_counts in keywords_count.items():
             non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
             non_zero_ext_counts = np.count_nonzero([count for _, count in code_extensions_count[url].items()])
             if non_zero_counts >= 3:
                 true_positive_urls_count += 1
+                list_true_positive_urls.append(url)
             elif 1 <= non_zero_counts < 3 and non_zero_ext_counts >=1:
                 true_positive_urls_count += 1
+                list_true_positive_urls.append(url)
 
-        return true_positive_urls_count
+        return true_positive_urls_count, list_true_positive_urls
 
-    # TODO: some function to output more than only the count?
+    # TODO: some more functions?
     #  For instance the name of the paper and the mention of the keyword.
 
     def search(self):
@@ -242,12 +251,14 @@ class SearchTheWeb:
         keywords_count_in_urls, code_extension_count_in_urls = self.count_keywords_on_website()
 
         git_in_urls_count = self.count_git_in_urls()
-        positive_urls_count = self.count_positive_urls(keywords_count=keywords_count_in_urls)
-        true_positive_urls_count = self.count_true_positive_urls(
+        positive_urls_count, positive_urls_list = self.count_positive_urls(keywords_count=keywords_count_in_urls)
+        true_positive_urls_count, true_positive_urls_list = self.count_true_positive_urls(
             keywords_count=keywords_count_in_urls, code_extensions_count=code_extension_count_in_urls
         )
-        keywords_count = self.count_per_matching_urls(keywords_count=keywords_count_in_urls)
+        # keywords_count = self.count_per_matching_urls(keywords_count=keywords_count_in_urls)
+        keywords_count = self.count_per_keyword(keywords_count=keywords_count_in_urls)
 
         counts = [git_in_urls_count, positive_urls_count, true_positive_urls_count]
+        lists = [positive_urls_list, true_positive_urls_list]
 
-        return keywords_count_in_urls, code_extension_count_in_urls, counts, keywords_count
+        return keywords_count_in_urls, code_extension_count_in_urls, counts, lists, keywords_count
