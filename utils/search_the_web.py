@@ -120,9 +120,10 @@ class SearchTheWeb:
 
         for i, word in enumerate(words):
             if word in code_extensions:
-                start = max(0, i - 10)  # if the keyword is within 10 words before or after the code extension
-                end = min(len(words), i + 11)
-                if keyword in words[start:end]:
+                # start = max(0, i - 10)  # if the keyword is within 10 words before or after the code extension
+                # end = min(len(words), i + 11)
+                if keyword in words:
+                # if keyword in words[start:end]:
                     found_extensions[word] += 1
         return found_extensions
 
@@ -145,7 +146,7 @@ class SearchTheWeb:
 
     def count_keywords_on_website(self):
 
-        results_code_mentions = {}
+        results_keyword_mentions = {}
         results_code_extensions = {}
 
         for ii, urls_list in tqdm(
@@ -154,7 +155,7 @@ class SearchTheWeb:
         ):
             urls_list = urls_list.split(' ') if type(urls_list) == str else []
             for url in urls_list:
-                if "git" or "zenodo" not in url:
+                if "git" not in url:
                     logging.info(f"Fetching {url}...")
                     content: str | None = self.fetch_page_content(url)
                     if content:
@@ -162,17 +163,76 @@ class SearchTheWeb:
                         soup = BeautifulSoup(content, 'html.parser')
                         text_content = soup.get_text()
                         keyword_counts = self.search_keywords_in_content(text_content, self.keywords)
-                        results_code_mentions[url] = keyword_counts
+                        results_keyword_mentions[url] = keyword_counts
                         most_cited_keyword = list(keyword_counts.items())[np.argmax([key_count[1] for key_count in list(keyword_counts.items())])][0]
                         code_extensions_counts = self.search_code_referenced_in_content(text_content, self.code_extensions, most_cited_keyword)
                         results_code_extensions[url] = code_extensions_counts
 
-        return results_code_mentions, results_code_extensions
+        return results_keyword_mentions, results_code_extensions
 
-    def find_link_to_code(self):
-        # TODO: this function should find links to code if a code keyword is mentioned.
-        #  Like, file with .py, .C, .cpp, etc.
-        pass
+    def count_git_in_urls(self):
+
+        results_git_in_urls = 0
+
+        for ii, urls_list in tqdm(
+                enumerate(self.urls[0:self.max_urls_search] if self.max_urls_search is not None else self.urls),
+                total=len(self.urls[0:self.max_urls_search])  if self.max_urls_search is not None else len(self.urls)
+        ):
+            urls_list = urls_list.split(' ') if type(urls_list) == str else []
+            for url in urls_list:
+                if "git" in url:
+                    results_git_in_urls += 1
+
+        return results_git_in_urls
+
+    def count_per_matching_urls(self, keywords_count):
+
+        total_keywords_count_per_url = {}
+        for url, kw_counts in keywords_count.items():
+            total_keywords_count_per_url[url] = 0
+            for _, count in kw_counts.items():
+                total_keywords_count_per_url[url] += count
+
+        return total_keywords_count_per_url
+
+    def count_per_keyword(self, keywords_count):
+        total_count_per_kw = {}
+        # TODO: finish this
+
+
+    def extensions_count_per_matching_url(self, code_extensions_count):
+
+        total_code_exts_count_per_url = {}
+        for url, code_ext_counts in code_extensions_count.items():
+            total_code_exts_count_per_url[url] = 0
+            for _, count in code_ext_counts.items():
+                total_code_exts_count_per_url[url] += count
+
+        return total_code_exts_count_per_url
+
+    def count_positive_urls(self, keywords_count):
+
+        positive_urls_count = 0
+        for url, kw_counts in keywords_count.items():
+            non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
+            if non_zero_counts >= 1:
+                positive_urls_count += 1
+
+        return positive_urls_count
+
+    def count_true_positive_urls(self, keywords_count, code_extensions_count):
+        # Assuming a true positive means that in the website there is either two mentions of keywords or a mention of a keyword and a code extension
+
+        true_positive_urls_count = 0
+        for url, kw_counts in keywords_count.items():
+            non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
+            non_zero_ext_counts = np.count_nonzero([count for _, count in code_extensions_count[url].items()])
+            if non_zero_counts >= 3:
+                true_positive_urls_count += 1
+            elif 1 <= non_zero_counts < 3 and non_zero_ext_counts >=1:
+                true_positive_urls_count += 1
+
+        return true_positive_urls_count
 
     # TODO: some function to output more than only the count?
     #  For instance the name of the paper and the mention of the keyword.
@@ -181,4 +241,13 @@ class SearchTheWeb:
 
         keywords_count_in_urls, code_extension_count_in_urls = self.count_keywords_on_website()
 
-        return keywords_count_in_urls, code_extension_count_in_urls
+        git_in_urls_count = self.count_git_in_urls()
+        positive_urls_count = self.count_positive_urls(keywords_count=keywords_count_in_urls)
+        true_positive_urls_count = self.count_true_positive_urls(
+            keywords_count=keywords_count_in_urls, code_extensions_count=code_extension_count_in_urls
+        )
+        keywords_count = self.count_per_matching_urls(keywords_count=keywords_count_in_urls)
+
+        counts = [git_in_urls_count, positive_urls_count, true_positive_urls_count]
+
+        return keywords_count_in_urls, code_extension_count_in_urls, counts, keywords_count
