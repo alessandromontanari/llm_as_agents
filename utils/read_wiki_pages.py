@@ -98,7 +98,7 @@ def process_ops_calls_for_database(list_paths: list):
             allowed_keys = ["OPS intro", "Day shift report", "HESSIU status", "DAQ status", "FC status", "Pointing",
                             "Tracking", "AOB", "Attendees", "Operations pages"]
             unexpected_keys = find_unexpected_keys(structured_data, allowed_keys)
-            aob_to_append = aob + "\n" + "\n".join([structured_data[key] for key in unexpected_keys])
+            aob_to_append = aob + ", " + ", ".join([f"{key}: "+structured_data[key] for key in unexpected_keys])
             aobs.append(aob_to_append)
         except Exception as e:
             aobs.append(" ")
