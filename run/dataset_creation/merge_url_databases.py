@@ -11,7 +11,7 @@ from glob import glob
 def main() -> None:
 
     list_paths_metadata = glob("./data/database_with_urls/*metadata*")
-    list_paths_urls = glob("./data/database_with_urls/*pdf*")
+    list_paths_urls = glob("./data/database_with_urls/*pdf_deep_clean*")
 
     year_month_combinations = [path.split("clean_")[1].split(".txt")[0] for path in list_paths_urls]
     year_month_combinations.sort()
@@ -23,7 +23,7 @@ def main() -> None:
         input("Please choose for which year you want me to merge the datasets by typing the index and ENTER. "
               "If you want me to merge all the years type -1 and ENTER. ")
     )
-    if 0 < chosen_index < len(years):
+    if 0 <= chosen_index < len(years):
         chosen_year = str(years[chosen_index])
         year_month_combinations = [year_month_combination for year_month_combination in year_month_combinations if chosen_year in year_month_combination]
     elif chosen_index == -1:
