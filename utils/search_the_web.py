@@ -80,13 +80,13 @@ class SearchTheWeb:
             path_to_data: str,
             keywords: [list],
             from_dataframe_or_base_file: str = "dataframe",
-            max_urls_search: int | None = 100,
+            max_url_lists_search: int | None = 100,
             shuffle: bool = False
     ):
 
         # from_dataframe_or_base_file either "dataframe" or "base_file" at the moment,
         self.from_dataframe_or_base_file = from_dataframe_or_base_file
-        self.max_urls_search = max_urls_search
+        self.max_url_lists_search = max_url_lists_search
         self.shuffle = shuffle
 
         self.path_to_data = path_to_data
@@ -159,8 +159,8 @@ class SearchTheWeb:
             urls = self.urls
 
         for ii, urls_list in tqdm(
-                enumerate(urls[0:self.max_urls_search] if self.max_urls_search is not None else urls),
-                total=len(urls[0:self.max_urls_search]) if self.max_urls_search is not None else len(urls),
+                enumerate(urls[0:self.max_url_lists_search] if self.max_url_lists_search is not None else urls),
+                total=len(urls[0:self.max_url_lists_search]) if self.max_url_lists_search is not None else len(urls),
                 desc="Counting kws and code exts..."
         ):
             urls_list = urls_list.split(' ') if type(urls_list) == str else []
