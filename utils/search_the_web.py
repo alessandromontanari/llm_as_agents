@@ -26,7 +26,8 @@ logging.basicConfig(
 )
 
 # TODO: may need to think of more keywords to include
-keywords_code = ["code", "codes", "algorithm", "software", "programming", "script", "pipeline", "repository", "notebook", "jupyter", "macro", "development"]
+keywords_code = ["code", "codes", "algorithm", "algorithms", "software",
+                 "programming", "script", "pipeline", "repository", "notebook", "jupyter", "macro", "development"]
 
 # TODO: may need to remove some extensions, not sure they are all needed...
 code_extensions_dict = {
@@ -78,7 +79,7 @@ class SearchTheWeb:
     def __init__(
             self,
             path_to_data: str,
-            keywords: [list],
+            keywords: [list] = None,
             from_dataframe_or_base_file: str = "dataframe",
             max_url_lists_search: int | None = 100,
             shuffle: bool = False
@@ -112,6 +113,8 @@ class SearchTheWeb:
         content_lower = content.lower()
         found_keywords = {keyword: len(re.findall(r'\b' + re.escape(keyword) + r'\b', content_lower)) for keyword in keywords}
         return found_keywords
+
+    # TODO: complete logging for the subsequent functions?
 
     @staticmethod
     def search_code_referenced_in_content(content, code_extensions, keyword):
@@ -218,8 +221,9 @@ class SearchTheWeb:
         positive_urls_count = 0
         list_positive_urls = []
         for url, kw_counts in keywords_count.items():
-            non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
-            if non_zero_counts >= 1:
+            # non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
+            non_zero_counts = np.array([count for _, count in kw_counts.items()])
+            if non_zero_counts[non_zero_counts > 0].sum() >= 1:  # summing the number of keyword hits to get the total
                 positive_urls_count += 1
                 list_positive_urls.append(url)
 
@@ -231,12 +235,14 @@ class SearchTheWeb:
         true_positive_urls_count = 0
         list_true_positive_urls = []
         for url, kw_counts in keywords_count.items():
-            non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
-            non_zero_ext_counts = np.count_nonzero([count for _, count in code_extensions_count[url].items()])
-            if non_zero_counts >= 3:
+            # non_zero_counts = np.count_nonzero([count for _, count in kw_counts.items()])
+            # non_zero_ext_counts = np.count_nonzero([count for _, count in code_extensions_count[url].items()])
+            non_zero_counts = np.array([count for _, count in kw_counts.items()])
+            non_zero_ext_counts = np.array([count for _, count in code_extensions_count[url].items()])
+            if non_zero_counts[non_zero_counts > 0].sum() >= 3:  # summing the number of keyword hits to get the total
                 true_positive_urls_count += 1
                 list_true_positive_urls.append(url)
-            elif 1 <= non_zero_counts < 3 and non_zero_ext_counts >=1:
+            elif 1 <= non_zero_counts[non_zero_counts > 0].sum() < 3 and non_zero_ext_counts[non_zero_ext_counts > 0].sum() >=1:  # summing the number of code extension hits
                 true_positive_urls_count += 1
                 list_true_positive_urls.append(url)
 
