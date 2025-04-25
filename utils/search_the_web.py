@@ -81,11 +81,13 @@ class SearchTheWeb:
             keywords: [list],
             from_dataframe_or_base_file: str = "dataframe",
             max_urls_search: int | None = 100,
+            shuffle: bool = False
     ):
 
         # from_dataframe_or_base_file either "dataframe" or "base_file" at the moment,
         self.from_dataframe_or_base_file = from_dataframe_or_base_file
         self.max_urls_search = max_urls_search
+        self.shuffle = shuffle
 
         self.path_to_data = path_to_data
 
@@ -150,9 +152,15 @@ class SearchTheWeb:
         results_code_extensions = {}
         results_git_in_urls = 0
 
+        if self.shuffle:
+            np.random.seed(42)
+            urls = pd.Series(np.random.permutation(self.urls))
+        else:
+            urls = self.urls
+
         for ii, urls_list in tqdm(
-                enumerate(self.urls[0:self.max_urls_search] if self.max_urls_search is not None else self.urls),
-                total=len(self.urls[0:self.max_urls_search])  if self.max_urls_search is not None else len(self.urls),
+                enumerate(urls[0:self.max_urls_search] if self.max_urls_search is not None else urls),
+                total=len(urls[0:self.max_urls_search]) if self.max_urls_search is not None else len(urls),
                 desc="Counting kws and code exts..."
         ):
             urls_list = urls_list.split(' ') if type(urls_list) == str else []
