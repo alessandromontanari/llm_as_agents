@@ -74,6 +74,8 @@ code_extensions_dict = {
     'zip': ['.tar', '.tar.gz', '.gz', '.zip', '.tgz']
 }
 
+# TODO: SearchTheWeb may become the basis class with fetch_page_content as method,
+#  from which two other classes, one searching for keywords and another one searching for the title/h1/meta, inherit
 
 class SearchTheWeb:
     def __init__(
@@ -94,8 +96,12 @@ class SearchTheWeb:
 
         self.identifiers, self.urls = self.preprocess_urls()
 
-        self.keywords = keywords[0]
-        self.code_extensions = keywords[1]
+        if keywords is not None:
+            self.keywords = keywords[0]
+            self.code_extensions = keywords[1]
+        else:
+            self.keywords = None
+            self.code_extensions = None
 
     @staticmethod
     def fetch_page_content(url, timeout=5):
@@ -107,6 +113,8 @@ class SearchTheWeb:
         except requests.RequestException as e:
             logging.error(msg=f"Error fetching {url}: {e}")
             return None
+
+    # the first inheriting class could include the methods from the next one
 
     @staticmethod
     def search_keywords_in_content(content, keywords):
@@ -253,6 +261,8 @@ class SearchTheWeb:
 
     def search(self):
 
+        assert self.keywords is not None and self.code_extensions is not None, "Cannot process the search if the keywords and code extensions have not been initialized"
+
         keywords_count_in_urls, code_extension_count_in_urls, git_in_urls_count = self.count_keywords_on_website_or_git_in_url()
 
         positive_urls_count, positive_urls_list = self.count_positive_urls(keywords_count=keywords_count_in_urls)
@@ -266,3 +276,80 @@ class SearchTheWeb:
         lists = [positive_urls_list, true_positive_urls_list]
 
         return keywords_count_in_urls, code_extension_count_in_urls, counts, lists, keywords_count
+
+    # the second inheriting class could include the methods from the next one
+
+    @staticmethod
+    def get_title(page_html):
+        soup = BeautifulSoup(page_html, 'html.parser')
+        title_tag = soup.find('title')  # looking for the <title> tag in the <head> section
+        if title_tag:
+            return title_tag.get_text(strip=True)
+        return None
+
+    @staticmethod
+    def get_meta_description(page_html):
+        soup = BeautifulSoup(page_html, 'html.parser')
+        meta_description = soup.find('meta', attrs={'name': 'description'})
+        if meta_description and meta_description.has_attr('content'):  # looking for the content in the <meta> tag with name 'description'
+            return meta_description['content']
+        return None
+
+    @staticmethod
+    def get_og_title(page_html):
+        soup = BeautifulSoup(page_html, 'html.parser')
+        og_title = soup.find('meta', property='og:title')
+        if og_title and og_title.has_attr('content'):  # looking for the content in the <meta> tag with property 'og:title'
+            return og_title['content']
+        return None
+
+    @staticmethod
+    def get_first_h1(page_html):
+        soup = BeautifulSoup(page_html, 'html.parser')
+        h1_tag = soup.find('h1')  # looking for the first <h1> in the <body> section
+        if h1_tag:
+            return h1_tag.get_text(strip=True)
+        return None
+
+    @staticmethod
+    def get_first_b(page_html):
+        soup = BeautifulSoup(page_html, 'html.parser')
+        b_tag = soup.find('b')  # looking for the first <> in the <body> section
+        if b_tag:
+            return b_tag.get_text(strip=True)
+        return None
+
+    def get_page_title(self, page_html):
+
+        title = self.get_title(page_html)
+        og_title = self.get_og_title(page_html)
+        meta_description = self.get_meta_description(page_html)
+        first_h1 = self.get_first_h1(page_html)
+        first_b = self.get_first_b(page_html)
+
+        results = [title, meta_description, og_title, first_h1, first_b]
+        filtered_results = []
+
+        for result in results:
+            if result and not len(result.split()) == 1:
+                filtered_results.append(result)
+
+        if title and meta_description and title in meta_description.split():
+            filtered_results = [res for res in filtered_results if res != title]
+
+        if filtered_results:
+            return ' - '.join(filtered_results), {
+            'title': title,
+            'og_title': og_title,
+            'meta_description': meta_description,
+            'first_h1': first_h1,
+            'first_b': first_b,
+        }
+        else:
+            return {
+            'title': title,
+            'og_title': og_title,
+            'meta_description': meta_description,
+            'first_h1': first_h1,
+            'first_b': first_b,
+        }
