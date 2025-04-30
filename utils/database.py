@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import traceback
 
 # TODO: add logging file writing
 
@@ -82,6 +83,34 @@ def database_creation(path_dir: str, database_name: str, table_name: str):
 
     # BEWARE: YOU NEED TO CLOSE THE DATABASE CONNECTION ONCE YOU ARE DONE!
     return conn, cursor
+
+def database_creation_from_db_dump(path_to_dump_file: str, path_to_sqlite_db: str):
+
+    # Connect to SQLite database
+    conn = sqlite3.connect(path_to_sqlite_db)
+    cursor = conn.cursor()
+
+    # Read the MySQL dump file
+    with open(path_to_dump_file, 'r') as file:
+        sql_statements = file.read()
+
+    # Split the SQL statements
+    statements = sql_statements.split(";\n")
+
+    # # Execute each SQL statement
+    for statement in statements:
+        # Skip empty statements
+        if statement.strip():
+            try:
+                cursor.execute(statement)
+            except sqlite3.Error as e:
+                print(f"Error executing statement: {e.args[0]}")
+                print(f"SQL statement: {statement}")
+                traceback.print_exc()  # Print the full traceback
+
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
 
 
 def database_access(path_dir: str, database_name: str, table_name: str = "software"):
